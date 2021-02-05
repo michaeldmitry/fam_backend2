@@ -6,7 +6,7 @@ from app import db
 
 class Brand(db.Model):
     id = db.Column(db.Integer, primary_key =True)
-    name = db.Column(db.String(64), nullable=False, index=True, unique=True) 
+    name = db.Column(db.Unicode(64), nullable=False, index=True, unique=True) 
     # products = db.relationship('Product', secondary=brand_product_association_table, lazy='subquery',
     #     backref=db.backref('brands', lazy=True))
     products = db.relationship('Product', backref='brand', lazy='dynamic')

@@ -11,6 +11,9 @@ class Purchase(db.Model):
     date = db.Column(db.DateTime, default = datetime.utcnow)
     paid = db.Column(db.Float, default = 0.0)
     total_price = db.Column(db.Float, default = 0.0)
+    representative_name = db.Column(db.Unicode(64))
+    representative_number = db.Column(db.String(13))
+    representative_email = db.Column(db.String(40))
     supplier_id = db.Column(db.Integer, db.ForeignKey('client.id'))
     orders_supplier =  db.relationship('OrderSupplier', backref='purchase', lazy='dynamic')
     
@@ -22,7 +25,10 @@ class Purchase(db.Model):
             'total_price':self.total_price,
             'supplier':self.supplier.name,
             'supplier_id': self.supplier_id,
-            'paid':self.paid
+            'paid':self.paid,
+            'representative_name': self.representative_name,
+            'representative_number': self.representative_number,
+            'representative_email': self.representative_email,
         }
                 
         return data

@@ -14,7 +14,7 @@ from sqlalchemy.types import JSON
 
 class Product(db.Model):
     id = db.Column(db.Integer, primary_key =True)
-    description = db.Column(db.String(64))
+    description = db.Column(db.Unicode(64))
     part_number = db.Column(db.String(20))
     store_qt = db.Column(db.Integer, default=0)
     store_loc = db.Column(db.String(50), default='None')
@@ -45,6 +45,7 @@ class Product(db.Model):
             'description': self.description,
             'part_number': self.part_number,
             'preorder_level': self.preorder_level,
+            'store_qt': self.store_qt,
             'subcategory_id': self.subcategory_id,
             'subcategory': self.subcategory.name,
             'category': self.subcategory.category.name,

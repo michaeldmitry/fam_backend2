@@ -11,23 +11,39 @@ from app.models.client_model import Client
 from app.models.purchase_model import Purchase
 from app.models.payment_supplier_model import PaymentSupplier
 from sqlalchemy import asc, desc
-from sqlalchemy import text
+from sqlalchemy import text, func
+from app.models.category_model import Category
+
+
+@bp.route('/suppliers/owed')
+def get_owed_money():
+    total = Client.query.with_entities(func.sum(Client.amount_to_get_paid).label("total")).filter_by(role ="supplier").first()
+    return jsonify({'total': total.total})
+
 
 @bp.route('/supplier/create', methods= ['POST'])
 def create_supplier():
     data = request.get_json() or {}
-    if 'name' not in data or 'email' not in data or 'phone_number' not in data or'address' not in data:
+    if 'name' not in data:
         return bad_request('Incomplete supplier info')
 
     if Client.query.filter_by(name=data["name"]).first():
         return bad_request('Client name already exists')
 
     data['name'] = data['name'].strip()
-    data['email'] = data['email'].strip()
-    data['phone_number'] = data['phone_number'].strip()
-    data['address'] = data['address'].strip()
+    data['email'] = data['email'].strip() if data['email'] else None
+    data['phone_number'] = data['phone_number'].strip() if data['phone_number'] else None
+    data['address'] = data['address'].strip() if data['address'] else None
+    categories = data['categories']
 
     user = Client(name = data['name'], role="supplier", email=data['email'], phone_number=data['phone_number'], address=data['address'])
+
+    for cat_id in categories:
+        category = Category.query.get_or_404(cat_id)
+        user.categories.append(category)
+        db.session.add(category)
+
+
     db.session.add(user)
     db.session.commit()
     response = jsonify(user.to_dict(role = "supplier"))
@@ -37,7 +53,7 @@ def create_supplier():
 @bp.route('/suppliers')
 def get_suppliers():
     data = Client.query.filter(Client.role == "supplier").all()
-    items = [item.to_dict(role = "supplier") for item in data]
+    items = [item.to_dict(role = "supplier", extraInfo=True) for item in data]
     return jsonify(items)
 
 
@@ -54,9 +70,13 @@ def get_suppliers_with_pag(per_page):
     keyword = request.args['search']
     sorted_field = request.args['field']
     order = request.args['order']
-    # print(Client.__table__.columns)
+    cat = int(request.args['cat'])
 
-    supliers = Client.query.filter(Client.role== "supplier", Client.name.contains(keyword))
+    supliers = Client.query
+    if(cat != -1):
+        supliers = supliers.filter(Client.categories.any(Category.id == cat))
+
+    supliers = supliers.filter(Client.role== "supplier", Client.name.contains(keyword))
     if(sorted_field != "" and order !=""):
         if(order == "asc"):
             if(sorted_field == 'id'):
@@ -202,7 +222,7 @@ def get_supp_activity(supp_id):
 @bp.route('/customer/create', methods= ['POST'])
 def create_customer():
     data = request.get_json() or {}
-    if 'name' not in data or 'email' not in data or 'phone_number' not in data or 'address' not in data:
+    if 'name' not in data:
         return bad_request('Incomplete Info')
 
     data['name'] = data['name'].strip()
@@ -210,9 +230,9 @@ def create_customer():
     if Client.query.filter_by(name=data["name"]).first():
         return bad_request('Customer name already exists')
 
-    data['email'] = data['email'].strip()
-    data['phone_number'] = data['phone_number'].strip()
-    data['address'] = data['address'].strip()
+    data['email'] = data['email'].strip() if data['email'] else None
+    data['phone_number'] = data['phone_number'].strip() if data['phone_number'] else None
+    data['address'] = data['address'].strip() if data['address'] else None
     
     user = Client(name = data['name'], role="customer", email = data['email'], phone_number = data['phone_number'], address = data['address'])
     db.session.add(user)

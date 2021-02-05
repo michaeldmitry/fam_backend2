@@ -12,10 +12,11 @@ from .order_supplier_return_model import OrderSupplierReturn
 from .order_customer_return_model import OrderCustomerReturn
 from sqlalchemy.sql.expression import label
 from sqlalchemy import text
+from .supplier_category_association_table import supplier_category_association_table
 
 class Client(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(25), index=True, unique=True)
+    name = db.Column(db.Unicode(25), index=True, unique=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     role = db.Column(db.String(10))
 
@@ -27,7 +28,9 @@ class Client(db.Model):
     # accounts = db.relationship('Account', secondary = 'client_account' , lazy='dynamic')
     email = db.Column(db.String(50))
     phone_number = db.Column(db.String(20))
-    address = db.Column(db.String(64))
+    address = db.Column(db.Unicode(64))
+
+    categories = db.relationship('Category', secondary=supplier_category_association_table, backref='suppliers', lazy='dynamic')
 
     supplier_purchases = db.relationship('Purchase', backref='supplier', lazy='dynamic')
     supplier_payments = db.relationship('PaymentSupplier', backref='supplier', lazy='dynamic')
@@ -54,11 +57,12 @@ class Client(db.Model):
         elif(role == "supplier"):
             data['supplier_balance'] = self.supplier_balance
             data['amount_to_get_paid'] = self.amount_to_get_paid
+            data['categories'] = [cat.to_dict()['name'] for cat in self.categories.all()]
+            # data['categories'] = self.categories.first().name
 
-        if(extraInfo):
-            data['email'] = self.email
-            data['phone_number'] = self.phone_number
-            data['address'] = self.address
+        data['email'] = self.email
+        data['phone_number'] = self.phone_number
+        data['address'] = self.address
                
         return data
 

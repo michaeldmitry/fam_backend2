@@ -11,15 +11,16 @@ import os
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key =True)
     date = db.Column(db.DateTime, default = datetime.utcnow)
-    paid = db.Column(db.Float, default = 0.0)
+    paid = db.Column(db.Float)
     total_price = db.Column(db.Float, default = 0.0)
     sale_type = db.Column(db.Boolean, default=True)
     taxes_add = db.Column(db.Boolean, default = True)
     reduction_add = db.Column(db.Boolean, default = True)
     official_id = db.Column(db.BigInteger, default=1000, index=True)
     unofficial_id = db.Column(db.BigInteger, default=1500, index=True)
-    representative_name = db.Column(db.String(64))
+    representative_name = db.Column(db.Unicode(64))
     representative_number = db.Column(db.String(13))
+    representative_email = db.Column(db.String(40))
 
     customer_id = db.Column(db.Integer, db.ForeignKey('client.id'))
     orders_customer =  db.relationship('OrderCustomer', backref='sale', lazy='dynamic')
@@ -34,6 +35,7 @@ class Sale(db.Model):
             'unofficial_id':self.unofficial_id,
             'representative_name': self.representative_name,
             'representative_number': self.representative_number,
+            'representative_email': self.representative_email,
             'date': self.date,
             'total_price':self.total_price,
             'customer':self.customer.name,

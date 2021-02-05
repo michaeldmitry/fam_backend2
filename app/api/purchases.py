@@ -11,7 +11,7 @@ from app.models.purchase_model import Purchase
 from app.models.client_model import Client
 from app.models.product_model import Product
 from app.models.order_supplier_model import OrderSupplier
-from sqlalchemy.sql import exists, func
+from sqlalchemy.sql import exists, func, text
 from app.models.account_model import Account
 from app.models.client_account_model import ClientAccount
 from datetime import date
@@ -75,8 +75,12 @@ def add_purchase(supp_id):
 
     supplier = Client.query.get_or_404(supp_id)
 
+    representative_name = data['representative_name'].strip() if data['representative_name'] else None
+    representative_number = data['representative_number'].strip() if data['representative_number'] else None
+    representative_email = data['representative_email'].strip() if data['representative_email'] else None
+
     purchase  = None
-    purchase = Purchase(id = id, paid = float(paid), total_price = total_price, supplier = supplier, taxes_included = taxes_included)
+    purchase = Purchase(id = id, paid = float(paid), total_price = total_price, supplier = supplier, taxes_included = taxes_included, representative_name=representative_name, representative_number=representative_number, representative_email = representative_email)
 
     for o in orders:
         product_id = int(o['product_id'])
@@ -95,4 +99,6 @@ def add_purchase(supp_id):
     db.session.add(purchase)
     db.session.commit()
     return jsonify(purchase.to_dict())
+
+
 

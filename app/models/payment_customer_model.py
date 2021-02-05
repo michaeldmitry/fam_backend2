@@ -14,4 +14,12 @@ class PaymentCustomer(db.Model):
     amount = db.Column(db.Float, default = 0.0)
     customer_id =  db.Column(db.Integer, db.ForeignKey('client.id'))
     
-    
+    def to_dict(self):
+        data = {
+            'id': self.id,
+            'date': self.date,
+            'amount':self.amount,
+            'customer':self.customer.name,
+        }
+                
+        return data
