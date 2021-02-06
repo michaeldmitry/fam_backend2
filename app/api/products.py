@@ -69,14 +69,17 @@ def get_products_below_preorder(per_page):
     items = [item.to_dict() for item in products_with_pag_without_total]
     return jsonify({'data':items, 'total':  products_with_pag.total})
 
-@bp.route('/products/pagination/<int:per_page>')
+@bp.route('/products/pagination/<int:per_page>', methods=['POST'])
 def get_products_with_pag(per_page):
-    curr_page = int(request.args['current'])
-    keyword = request.args['search'].strip()
-    sorted_field = request.args['field']
-    order = request.args['order']
-    cat = int(request.args['cat'])
-    subcat = int(request.args['subcat'])
+    data = request.get_json() or {}
+    curr_page = int(data['current'])
+    keyword = data['search'].strip()
+    sorted_field = data['field']
+    order = data['order']
+    cat = int(data['cat'])
+    subcat = int(data['subcat'])
+    brand = int(data['brand'])
+    attributes = data['attributes']
 
     subquery = db.session.query(Product.root_replacement_id).filter(Product.part_number.contains(keyword) | Product.description.contains(keyword)).subquery()
     getAllTreeQ = db.session.query(Product).filter(Product.root_replacement_id.in_(subquery))
@@ -85,10 +88,27 @@ def get_products_with_pag(per_page):
     products = unionedQ.from_self(Product, (func.sum(ProductWarehouse.quantity)+Product.store_qt).label('total')).join(ProductWarehouse).group_by(Product)
 
 
+
     if(cat != -1):
         products = products.filter(Product.subcategory.has(Subcategory.category_id == cat))
     if(subcat != -1):
         products = products.filter(Product.subcategory_id == subcat)
+
+    if(brand != -1):
+        products = products.filter(Product.brand_id == brand)
+
+    keys = []
+    for product in products.all():
+        if product[0].attributes:
+            keys.extend(product[0].attributes.keys())
+    keys=list(set(keys))
+    
+    for attr in attributes:
+        products = products.filter(Product.attributes, Product.attributes[attr['name']] == attr['value'])
+
+
+
+    
 
     if(sorted_field != "" and order !=""):
         if(order == "asc"):
@@ -113,7 +133,7 @@ def get_products_with_pag(per_page):
 
     products_with_pag_without_total = [item[0] for item in products_with_pag.items]
     items = [item.to_dict() for item in products_with_pag_without_total]
-    return jsonify({'data':items, 'total':  products_with_pag.total})
+    return jsonify({'data':items, 'total':  products_with_pag.total, 'attr_keys': keys})
 
 @bp.route('/product/purchases/pagination/<int:product_id>/<int:per_page>')
 def get_product_purchases_with_pag(product_id,per_page):
@@ -205,8 +225,9 @@ def add_product(subcat_id, brand_id):
 
     if 'description' in data and data['description']:
         data['description'] = data['description'].strip()
+
     
-    product = Product(description = data['description'], part_number = data['part_number'], preorder_level = data['preorder_level'], subcategory=subcategory, brand=brand)
+    product = Product(description = data['description'], part_number = data['part_number'], preorder_level = data['preorder_level'], subcategory=subcategory, brand=brand, attributes= data['attributes'])
     if(replacement):
         replacement.replaced_by.append(product)
         rootReplacement = db.session.query(Product).from_statement(text(''' 
@@ -238,3 +259,13 @@ def add_product(subcat_id, brand_id):
     response = jsonify(product.to_dict())
     response.status_code = 201
     return response
+
+@bp.route('/product/attr/values')
+def get_product_attr_values():
+    key = request.args['key']
+    products = Product.query.all()
+    vals = []
+    for product in products:
+        if product.attributes and key in product.attributes and product.attributes[key] not in vals:
+            vals.append(product.attributes[key])
+    return jsonify(list(vals))

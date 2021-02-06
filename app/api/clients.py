@@ -209,8 +209,7 @@ def get_supplier_activity_with_pag(supp_id,per_page):
         return bad_request('Something wrong happened from our side')
 
     res = [dict(row) for row in activity]
-  
-    return jsonify({'data':res, 'total': res[0]['Total_count']})
+    return jsonify({'data':res, 'total': res[0]['Total_count'] if len(res)>0 else 0})
 
 @bp.route('/supplier/activity/<int:supp_id>')
 def get_supp_activity(supp_id):

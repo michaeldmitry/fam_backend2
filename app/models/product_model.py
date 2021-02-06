@@ -37,7 +37,7 @@ class Product(db.Model):
     subcategory_id = db.Column(db.Integer, db.ForeignKey('subcategory.id'))
     brand_id = db.Column(db.Integer, db.ForeignKey('brand.id'))
 
-    attributes = db.Column(JSON)
+    attributes = db.Column(JSON, default=lambda: {})
 
     def to_dict(self, warehouse_id= None):
         data = {
