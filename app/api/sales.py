@@ -14,14 +14,28 @@ from app.models.order_customer_model import OrderCustomer
 from sqlalchemy.sql import exists, func, text
 from app.models.account_model import Account
 from app.models.client_account_model import ClientAccount
-from datetime import date
+from datetime import date, timedelta
 from calendar import monthrange
+import pandas as pd
 
 @bp.route('/sales')
 def get_sales():
     sales = Sale.query.all()
     items = [item.to_dict() for item in sales]
     return jsonify(items)
+
+@bp.route('/sales/chart', methods=['GET'])
+def get_sales_chart():
+    min_year = int(request.args['min_year'])
+    min_month = int(request.args['min_month'])
+    max_year = int(request.args['max_year'])
+    max_month = int(request.args['max_month'])
+    sales = db.session.query(func.count(Sale.date).label('count'), Sale.date).filter(Sale.date >= '{}-{:02d}-01'.format(min_year, min_month)).filter(Sale.date <= '{}-{:02d}-{:02d}'.format(max_year, max_month, monthrange(max_year, max_month)[1])).group_by(func.date(Sale.date)).order_by(Sale.date)
+    sales_price = db.session.query(func.sum(Sale.total_price).label('total'), func.count(Sale.id).label('count')).filter(Sale.date >= '{}-{:02d}-01'.format(min_year, min_month)).filter(Sale.date <= '{}-{:02d}-{:02d}'.format(max_year, max_month, monthrange(max_year, max_month)[1])).first()
+
+    arr = [ {'x': sale.date, 'y': sale.count} for sale in sales.all()]
+    return jsonify({'arr':arr, 'price': sales_price.total, 'count': sales_price.count})
+
 
 @bp.route('/sales/pagination/<int:per_page>', methods=['POST'])
 def get_sales_with_pag(per_page):
@@ -151,3 +165,4 @@ def add_sale(cust_id):
     db.session.add(sale)
     db.session.commit()
     return jsonify(sale.to_dict())
+
