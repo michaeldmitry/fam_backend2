@@ -16,6 +16,8 @@ from app.models.account_model import Account
 from app.models.client_account_model import ClientAccount
 from datetime import date
 from random import randint
+from datetime import date, timedelta
+from calendar import monthrange
 
 @bp.route('/purchases')
 def get_purchases():
@@ -23,14 +25,15 @@ def get_purchases():
     items = [item.to_dict() for item in purchases]
     return jsonify(items)
 
-@bp.route('/purchases/pagination/<int:per_page>')
+@bp.route('/purchases/pagination/<int:per_page>', methods=['POST'])
 def get_purchases_with_pag(per_page):
-    curr_page = int(request.args['current'])
-    keyword = request.args['search']
-    sorted_field = request.args['field']
-    order = request.args['order']
-    
-    purchases = Purchase.query
+    data = request.get_json() or {}
+    curr_page = int(data['current'])
+    keyword = data['search']
+    sorted_field = data['field']
+    order = data['order']
+    filters = data['filters']
+    purchases = Purchase.query.filter(Purchase.date >= '{}-{:02d}-01'.format(filters['min_year'], filters['min_month'])).filter(Purchase.date <= '{}-{:02d}-{:02d} 23:59:59'.format(filters['max_year'], filters['max_month'], monthrange(filters['max_year'],filters['max_month'])[1]))    
 
     purchases = purchases.filter(Purchase.supplier.has(Client.name.contains(keyword)))
 

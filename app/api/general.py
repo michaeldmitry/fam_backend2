@@ -18,9 +18,18 @@ from app.models.product_model import Product
 @bp.route('/dates', methods=['GET'])
 def get_dates_range():
     table = (request.args['table']).strip()
-    result = db.engine.execute(text("select min(YEAR(date)) as min_year, max(YEAR(date)) as max_year from {}".format(table)))
+    result = None
+    if(int(request.args['id'])>0):
+        id = int(request.args['id'])
+        field = (request.args['field']).strip()
+        result = db.engine.execute(text("select min(YEAR(date)) as min_year, max(YEAR(date)) as max_year from {} where {}={}".format(table, field, id)))
+    else:
+        result = db.engine.execute(text("select min(YEAR(date)) as min_year, max(YEAR(date)) as max_year from {}".format(table)))
     res = [dict(row) for row in result]
-    return jsonify(res[0])
+    if(len(res) >0):
+        return jsonify(res[0])
+    else:
+        return jsonify({"min_year": "", "max_year": ""})
 
 
 @bp.route('/total', methods=['GET'])

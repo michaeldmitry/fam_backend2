@@ -13,7 +13,8 @@ from app.models.payment_supplier_model import PaymentSupplier
 from sqlalchemy import asc, desc
 from sqlalchemy import text, func
 from app.models.category_model import Category
-
+from datetime import date, timedelta
+from calendar import monthrange
 
 @bp.route('/suppliers/owed')
 def get_owed_money():
@@ -56,7 +57,40 @@ def get_suppliers():
     items = [item.to_dict(role = "supplier", extraInfo=True) for item in data]
     return jsonify(items)
 
+@bp.route('/supplier/<int:user_id>', methods=['PUT'])
+def update_supplier(user_id):
+    data = request.get_json() or {}
+    supplier = Client.query.get_or_404(user_id)
+    data['name'].strip()
+    data['address'].strip()
+    data['phone_number'].strip()
+    data['email'].strip()
 
+    if (Client.query.filter(Client.name == data['name'], Client.id != user_id).first() is not None):
+        return bad_request('There is already a supplier with the same name')
+
+
+    supplier.from_dict(data)
+
+    db.session.add(supplier)
+    db.session.commit()
+    
+    return jsonify(supplier.to_dict(role="supplier"))
+
+@bp.route('/supplier/<int:user_id>', methods=['DELETE'])
+def delete_supplier(user_id):
+    supplier = Client.query.get_or_404(user_id)
+
+    if (supplier.supplier_purchases.first() is not None or supplier.supplier_payments.first() is not None):
+        return bad_request('Already had activity with this supplier')
+
+    supplier.categories= []
+    db.session.commit()
+
+    db.session.delete(supplier)
+    db.session.commit()
+    
+    return jsonify({"message": "deleted successfully"})
 
 @bp.route('/suppliers/pages/<int:per_page>')
 def get_suppliers_pages_no(per_page):
@@ -111,15 +145,19 @@ def get_supp_purchases(supp_id):
 
 
 
-@bp.route('/suppliers/purchases/pagination/<int:supp_id>/<int:per_page>')
+@bp.route('/suppliers/purchases/pagination/<int:supp_id>/<int:per_page>', methods=['POST'])
 def get_supplier_purchases_with_pag(supp_id,per_page):
-    curr_page = int(request.args['current'])
+    data = request.get_json() or {}
+    curr_page = int(data['current'])
     # keyword = request.args['search']
-    sorted_field = request.args['field']
-    order = request.args['order']
+    sorted_field = data['field']
+    order = data['order']
+    filters = data['filters']
 
     supplier = Client.query.get_or_404(supp_id)
     purchases = supplier.supplier_purchases
+    purchases = purchases.filter(Purchase.date >= '{}-{:02d}-01'.format(filters['min_year'], filters['min_month'])).filter(Purchase.date <= '{}-{:02d}-{:02d} 23:59:59'.format(filters['max_year'], filters['max_month'], monthrange(filters['max_year'],filters['max_month'])[1]))    
+
     if(sorted_field != "" and order !=""):
         if(order == "asc"):
             if(sorted_field == 'id'):
@@ -140,15 +178,43 @@ def get_supplier_purchases_with_pag(supp_id,per_page):
     return jsonify({'data':items, 'total': purchases_with_pag.total})
 
 
-@bp.route('/suppliers/payments/pagination/<int:supp_id>/<int:per_page>')
+@bp.route('/supplier/accumulated/<int:supp_id>', methods=['GET'])
+def get_supplier_accumulated(supp_id):
+    min_month = int(request.args['min_month'])
+    min_year = int(request.args['min_year'])
+
+    result = db.engine.execute(text("select sum(paid) as total_paid, sum(total_price) as total_price from ( select purchase.id, purchase.date, purchase.paid, purchase.total_price, purchase.supplier_id from purchase where purchase.supplier_id = {} \
+                                    and DATE(purchase.date) < '{}-{}-01' union all select payment_supplier.id,  payment_supplier.date,\
+                                    payment_supplier.amount, Null as col5, payment_supplier.supplier_id from payment_supplier\
+                                    where payment_supplier.supplier_id={} and DATE(payment_supplier.date) < '{}-{}-01') x group by supplier_id;".format(supp_id, min_year, min_month, supp_id, min_year, min_month)))
+    res = [dict(row) for row in result]
+    if(len(res) > 0):
+        return jsonify(res[0])
+    else:
+        return jsonify({"total_paid": 0, "total_price": 0})
+
+@bp.route('/dates/supplier/activity/<int:supp_id>', methods=['GET'])
+def get_dates_range_supplier_activity(supp_id):
+    result = db.engine.execute(text("select min(min_year) as min_year, max(max_year) as max_year FROM (select min(YEAR(date)) as min_year, max(YEAR(date)) as max_year from purchase where supplier_id = {} UNION SELECT min(YEAR(date)) as min_year, max(YEAR(DATE)) as max_year from payment_supplier where supplier_id={}) s".format(supp_id, supp_id)))
+    res = [dict(row) for row in result]
+    if(len(res) > 0):
+        return jsonify(res[0])
+    else:
+        return jsonify({"min_year": "", "max_year": ""})
+
+@bp.route('/suppliers/payments/pagination/<int:supp_id>/<int:per_page>', methods=['POST'])
 def get_supplier_payments_with_pag(supp_id,per_page):
-    curr_page = int(request.args['current'])
+    data = request.get_json() or {}
+    curr_page = int(data['current'])
     # keyword = request.args['search']
-    sorted_field = request.args['field']
-    order = request.args['order']
+    sorted_field = data['field']
+    order = data['order']
+    filters = data['filters']
 
     supplier = Client.query.get_or_404(supp_id)
     payments = supplier.supplier_payments
+    payments = payments.filter(PaymentSupplier.date >= '{}-{:02d}-01'.format(filters['min_year'], filters['min_month'])).filter(PaymentSupplier.date <= '{}-{:02d}-{:02d} 23:59:59'.format(filters['max_year'], filters['max_month'], monthrange(filters['max_year'],filters['max_month'])[1]))    
+
     if(sorted_field != "" and order !=""):
         if(order == "asc"):
             if(sorted_field == 'id'):
@@ -176,12 +242,16 @@ def get_supp_payments(supp_id):
     items = [item.to_dict() for item in payments]
     return jsonify(items)
 
-@bp.route('/supplier/activity/pagination/<int:supp_id>/<int:per_page>')
+@bp.route('/supplier/activity/pagination/<int:supp_id>/<int:per_page>', methods=['POST'])
 def get_supplier_activity_with_pag(supp_id,per_page):
-    curr_page = int(request.args['current'])
+    data = request.get_json() or {}
+    curr_page = int(data['current'])
     # keyword = request.args['search']
-    sorted_field = request.args['field']
-    order = request.args['order']
+    sorted_field = data['field']
+    order = data['order']
+    filters = data['filters']
+
+
     supplier = Client.query.get_or_404(supp_id)
     field_param = None
     order_param = None
@@ -204,7 +274,7 @@ def get_supplier_activity_with_pag(supp_id,per_page):
         field_param = "id"
         order_param = "ASC"
 
-    activity = supplier.getActivityQuery(role="supplier", field = field_param, order = order_param, page_no = curr_page, rows_per_page = per_page)
+    activity = supplier.getActivityQuery(role="supplier", field = field_param, order = order_param, page_no = curr_page, rows_per_page = per_page, min_month = filters['min_month'], min_year = filters['min_year'], max_month=filters['max_month'], max_year = filters['max_year'])
     if(activity is None):
         return bad_request('Something wrong happened from our side')
 

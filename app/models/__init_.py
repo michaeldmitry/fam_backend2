@@ -16,3 +16,4 @@ from .return_sale_model import ReturnSale
 from .category_model import Category
 from .subcategory_model import Subcategory
 from .brand_product_association_table import brand_product_association_table
+from .employee_model import Employee

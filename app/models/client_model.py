@@ -13,6 +13,7 @@ from .order_customer_return_model import OrderCustomerReturn
 from sqlalchemy.sql.expression import label
 from sqlalchemy import text
 from .supplier_category_association_table import supplier_category_association_table
+from calendar import monthrange
 
 class Client(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -66,6 +67,10 @@ class Client(db.Model):
                
         return data
 
+    def from_dict(self, data):
+        for field in ["name", "email", "phone_number", "address"]:
+            if field in data:
+                setattr(self, field, data[field])
 
     def getActivity(self, role):
         activity = []
@@ -91,13 +96,13 @@ class Client(db.Model):
 
         return activity
 
-    def getActivityQuery(self, role, field, order, page_no, rows_per_page):
+    def getActivityQuery(self, role, field, order, page_no, rows_per_page, min_month, min_year, max_month, max_year):
         
         if(role == "supplier"):
             id = self.id
             sql = text("SELECT id, date, paid, total_price, COUNT(*) OVER() AS Total_count FROM ((select purchase.id, purchase.date, purchase.paid, purchase.total_price from purchase where purchase.supplier_id = \
-                     {}) union all (select payment_supplier.id,  payment_supplier.date,payment_supplier.amount, Null as col5 from payment_supplier\
-                     where payment_supplier.supplier_id={})) s order by {} {} LIMIT {}, {};".format(str(id), str(id), field, order, str((page_no-1)*rows_per_page), str(rows_per_page) ))
+                     {} and DATE(purchase.date) BETWEEN '{}-{:02d}-01' AND '{}-{:02d}-{:02d} 23:59:59' ) union all (select payment_supplier.id,  payment_supplier.date,payment_supplier.amount, Null as col5 from payment_supplier\
+                     where payment_supplier.supplier_id={} and DATE(payment_supplier.date) BETWEEN '{}-{:02d}-01' AND '{}-{:02d}-{:02d} 23:59:59' )) s order by {} {} LIMIT {}, {};".format(str(id), min_year, min_month, max_year, max_month, monthrange(max_year,max_month)[1],  str(id),min_year, min_month, max_year, max_month, monthrange(max_year,max_month)[1]  , field, order, str((page_no-1)*rows_per_page), str(rows_per_page) ))
 
             both = db.engine.execute(sql)
             return both

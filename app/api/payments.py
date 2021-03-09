@@ -13,6 +13,7 @@ from app.models.payment_customer_model import PaymentCustomer
 from app.models.account_model import Account
 from app.models.client_account_model import ClientAccount
 from datetime import date
+from calendar import monthrange
 
 @bp.route('/payments/supplier', methods=['GET'])
 def get_supps_payments():
@@ -20,14 +21,17 @@ def get_supps_payments():
     items = [item.to_dict() for item in payments]
     return jsonify(items)
 
-@bp.route('/payments/supplier/pagination/<int:per_page>')
+@bp.route('/payments/supplier/pagination/<int:per_page>',methods=['POST'])
 def get_suppliers_payments_with_pag(per_page):
-    curr_page = int(request.args['current'])
-    keyword = request.args['search']
-    sorted_field = request.args['field']
-    order = request.args['order']
+    data = request.get_json() or {}
+    curr_page = int(data['current'])
+    keyword = data['search']
+    sorted_field = data['field']
+    order = data['order']
+    filters = data['filters']
 
-    supplier_payments = PaymentSupplier.query.filter(PaymentSupplier.supplier.has(Client.name.contains(keyword)))
+    supplier_payments = PaymentSupplier.query.filter(PaymentSupplier.date >= '{}-{:02d}-01'.format(filters['min_year'], filters['min_month'])).filter(PaymentSupplier.date <= '{}-{:02d}-{:02d} 23:59:59'.format(filters['max_year'], filters['max_month'], monthrange(filters['max_year'],filters['max_month'])[1]))    
+    supplier_payments = supplier_payments.filter(PaymentSupplier.supplier.has(Client.name.contains(keyword)))
 
     if(sorted_field != "" and order != ""):
         if(order == "asc"):

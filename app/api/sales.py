@@ -30,7 +30,7 @@ def get_sales_chart():
     min_month = int(request.args['min_month'])
     max_year = int(request.args['max_year'])
     max_month = int(request.args['max_month'])
-    sales = db.session.query(func.count(Sale.date).label('count'), Sale.date).filter(Sale.date >= '{}-{:02d}-01'.format(min_year, min_month)).filter(Sale.date <= '{}-{:02d}-{:02d}'.format(max_year, max_month, monthrange(max_year, max_month)[1])).group_by(func.date(Sale.date)).order_by(Sale.date)
+    sales = db.session.query(func.count(Sale.date).label('count'), Sale.date).filter(Sale.date >= '{}-{:02d}-01'.format(min_year, min_month)).filter(Sale.date <= '{}-{:02d}-{:02d} 23:59:59'.format(max_year, max_month, monthrange(max_year, max_month)[1])).group_by(func.date(Sale.date)).order_by(Sale.date)
     sales_price = db.session.query(func.sum(Sale.total_price).label('total'), func.count(Sale.id).label('count')).filter(Sale.date >= '{}-{:02d}-01'.format(min_year, min_month)).filter(Sale.date <= '{}-{:02d}-{:02d}'.format(max_year, max_month, monthrange(max_year, max_month)[1])).first()
 
     arr = [ {'x': sale.date, 'y': sale.count} for sale in sales.all()]
