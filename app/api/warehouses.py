@@ -38,6 +38,36 @@ def get_warehouse(warhouse_id):
     warehouse = Warehouse.query.get_or_404(warhouse_id)
     return jsonify(warehouse.to_dict())
 
+@bp.route('/warehouse/<int:warhouse_id>', methods=['DELETE'])
+def delete_warehouse(warhouse_id):
+    warehouse = Warehouse.query.get_or_404(warhouse_id)
+
+    if (warehouse.products.first() is not None):
+        return bad_request('Warehouse already has products in it')
+
+    db.session.delete(warehouse)
+    db.session.commit()
+    
+    return jsonify({"message": "deleted successfully"})
+
+@bp.route('/warehouse/<int:warehouse_id>', methods=['PUT'])
+def update_warehouse(warehouse_id):
+    data = request.get_json() or {}
+    warehouse = Warehouse.query.get_or_404(warehouse_id)
+    data['name'] = data['name'].strip() if data['name'] else None
+    data['address'] = data['address'].strip() if data['address'] else None
+
+    if (Warehouse.query.filter(Warehouse.name == data['name'], Warehouse.id != warehouse_id).first() is not None):
+        return bad_request('There is already a warehouse with the same name')
+
+
+    warehouse.from_dict(data)
+
+    db.session.add(warehouse)
+    db.session.commit()
+    
+    return jsonify(warehouse.to_dict())
+
 @bp.route('/warehouses/pagination/<int:per_page>')
 def get_warehouses_with_pag(per_page):
     curr_page = int(request.args['current'])

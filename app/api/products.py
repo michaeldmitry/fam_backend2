@@ -9,6 +9,7 @@ from flask import g, abort
 import uuid
 from app.models.product_model import Product
 from app.models.order_supplier_model import OrderSupplier
+from app.models.order_customer_model import OrderCustomer
 from app.models.reallocation_model import Reallocation
 from app.models.warehouse_model import Warehouse
 from app.models.product_warehouse_model import ProductWarehouse
@@ -18,6 +19,7 @@ from sqlalchemy import text
 from app.models.subcategory_model import Subcategory
 from app.models.brand_model import Brand
 from sqlalchemy.orm import aliased
+from calendar import monthrange
 
 
 @bp.route('/products', methods=['GET'])
@@ -25,6 +27,40 @@ def get_products():
     products = Product.query.all()
     items = [item.to_dict() for item in products]
     return jsonify(items)
+
+@bp.route('/product/<int:prod_id>', methods=['DELETE'])
+def delete_product(prod_id):
+    product = Product.query.get_or_404(prod_id)
+
+    if (product.orders_customer.first() is not None or product.orders_supplier.first() is not None or product.reallocations.first() is not None):
+        return bad_request('Product has already been bought, sold, or reallocated')
+
+    product.warehouses= []
+    db.session.commit()
+
+    db.session.delete(product)
+    db.session.commit()
+    
+    return jsonify({"message": "deleted successfully"})
+
+@bp.route('/product/<int:prod_id>', methods=['PUT'])
+def update_product(prod_id):
+    data = request.get_json() or {}
+    product = Product.query.get_or_404(prod_id)
+    data['part_number'] = data['part_number'].strip() if data['part_number'] else None
+    data['description'] = data['description'].strip() if data['description'] else None
+    data['preorder_level'] = int(data['preorder_level']) if data['preorder_level'] else None
+
+    if (Product.query.filter(Product.part_number == data['part_number'], Product.id != prod_id).first() is not None):
+        return bad_request('There is already a product with the same part number')
+
+
+    product.from_dict(data)
+
+    db.session.add(product)
+    db.session.commit()
+    
+    return jsonify(product.to_dict())
 
 @bp.route('/products/dropdown', methods=['GET'])
 def get_products_dropdown():
@@ -107,9 +143,6 @@ def get_products_with_pag(per_page):
         products = products.filter(Product.attributes, Product.attributes[attr['name']] == attr['value'])
 
 
-
-    
-
     if(sorted_field != "" and order !=""):
         if(order == "asc"):
             if(sorted_field == 'part_number'):
@@ -118,6 +151,8 @@ def get_products_with_pag(per_page):
                 products = products.order_by(Product.description.asc())
             elif(sorted_field == 'total_quantity'):
                 products = products.order_by(text('total ASC'))
+            elif(sorted_field == 'preorder_level'):
+                products = products.order_by(Product.preorder_level.asc())
 
         else:
             if(sorted_field == 'part_number'):
@@ -126,6 +161,8 @@ def get_products_with_pag(per_page):
                 products = products.order_by(Product.description.desc())
             elif(sorted_field == 'total_quantity'):
                 products = products.order_by(text('total DESC'))
+            elif(sorted_field == 'preorder_level'):
+                products = products.order_by(Product.preorder_level.desc())
     else:
         products = products.order_by(Product.part_number.asc())
 
@@ -135,46 +172,118 @@ def get_products_with_pag(per_page):
     items = [item.to_dict() for item in products_with_pag_without_total]
     return jsonify({'data':items, 'total':  products_with_pag.total, 'attr_keys': keys})
 
-@bp.route('/product/purchases/pagination/<int:product_id>/<int:per_page>')
+@bp.route('/product/purchases/pagination/<int:product_id>/<int:per_page>', methods=['POST'])
 def get_product_purchases_with_pag(product_id,per_page):
-    curr_page = int(request.args['current'])
-    sorted_field = request.args['field']
-    order = request.args['order']
+    data = request.get_json() or {}
+    curr_page = int(data['current'])
+    sorted_field = data['field']
+    order = data['order']
+    filters = data['filters']
 
     product = Product.query.get_or_404(product_id)
-    supplier_orders = product.orders_supplier
+    # supplier_orders = product.orders_supplier
+    supplier_orders = db.session.query(OrderSupplier, (OrderSupplier.price_per_item * OrderSupplier.quantity).label("total")).filter(OrderSupplier.product_id == product_id)
+    supplier_orders = supplier_orders.filter(OrderSupplier.date >= '{}-{:02d}-01'.format(filters['min_year'], filters['min_month'])).filter(OrderSupplier.date <= '{}-{:02d}-{:02d} 23:59:59'.format(filters['max_year'], filters['max_month'], monthrange(filters['max_year'],filters['max_month'])[1]))    
 
     if(sorted_field != "" and order !=""):
         if(order == "asc"):
-            if(sorted_field == 'id'):
-                supplier_orders = supplier_orders.order_by(OrderSupplier.id.asc())
+            if(sorted_field == 'purchase_id'):
+                supplier_orders = supplier_orders.order_by(OrderSupplier.purchase_id.asc())
             elif(sorted_field == 'date'):
                 supplier_orders = supplier_orders.order_by(OrderSupplier.date.asc())
             elif(sorted_field == 'supplier'):
                 supplier_orders = supplier_orders.order_by(OrderSupplier.supplier_id.asc())
+            elif(sorted_field == 'quantity'):
+                supplier_orders = supplier_orders.order_by(OrderSupplier.quantity.asc())
+            elif(sorted_field == 'price_per_item'):
+                supplier_orders = supplier_orders.order_by(OrderSupplier.price_per_item.asc())
+            elif(sorted_field == 'total'):
+                supplier_orders = supplier_orders.order_by(text('total ASC'))
 
         else:
-            if(sorted_field == 'id'):
-                supplier_orders = supplier_orders.order_by(OrderSupplier.id.desc())
+            if(sorted_field == 'purchase_id'):
+                supplier_orders = supplier_orders.order_by(OrderSupplier.purchase_id.desc())
             elif(sorted_field == 'date'):
                 supplier_orders = supplier_orders.order_by(OrderSupplier.date.desc())
             elif(sorted_field == 'supplier'):
                 supplier_orders = supplier_orders.order_by(OrderSupplier.supplier_id.desc())
+            elif(sorted_field == 'quantity'):
+                supplier_orders = supplier_orders.order_by(OrderSupplier.quantity.desc())
+            elif(sorted_field == 'price_per_item'):
+                supplier_orders = supplier_orders.order_by(OrderSupplier.price_per_item.desc())
+            elif(sorted_field == 'total'):
+                supplier_orders = supplier_orders.order_by(text('total DESC'))
     else:
         supplier_orders = supplier_orders.order_by(OrderSupplier.id.asc())
 
     supplier_orders_with_pag = supplier_orders.paginate(page = curr_page, per_page = per_page,  error_out=True)
-    items = [item.to_dict() for item in supplier_orders_with_pag.items]
+    supplier_orders_with_pag_without_total = [item[0] for item in supplier_orders_with_pag.items]
+
+    items = [item.to_dict() for item in supplier_orders_with_pag_without_total]
     return jsonify({'data':items, 'total': supplier_orders_with_pag.total})
 
-@bp.route('/product/reallocations/pagination/<int:product_id>/<int:per_page>')
+@bp.route('/product/sales/pagination/<int:product_id>/<int:per_page>', methods=['POST'])
+def get_product_sales_with_pag(product_id,per_page):
+    data = request.get_json() or {}
+    curr_page = int(data['current'])
+    sorted_field = data['field']
+    order = data['order']
+    filters = data['filters']
+
+    product = Product.query.get_or_404(product_id)
+    # supplier_orders = product.orders_supplier
+    customer_orders = db.session.query(OrderCustomer, (OrderCustomer.price_per_item * OrderCustomer.quantity).label("total")).filter(OrderCustomer.product_id == product_id)
+    customer_orders = customer_orders.filter(OrderCustomer.date >= '{}-{:02d}-01'.format(filters['min_year'], filters['min_month'])).filter(OrderCustomer.date <= '{}-{:02d}-{:02d} 23:59:59'.format(filters['max_year'], filters['max_month'], monthrange(filters['max_year'],filters['max_month'])[1]))    
+
+    if(sorted_field != "" and order !=""):
+        if(order == "asc"):
+            if(sorted_field == 'sale_id'):
+                customer_orders = customer_orders.order_by(OrderCustomer.sale_id.asc())
+            elif(sorted_field == 'date'):
+                customer_orders = customer_orders.order_by(OrderCustomer.date.asc())
+            elif(sorted_field == 'customer'):
+                customer_orders = customer_orders.order_by(OrderCustomer.customer_id.asc())
+            elif(sorted_field == 'quantity'):
+                customer_orders = customer_orders.order_by(OrderCustomer.quantity.asc())
+            elif(sorted_field == 'price_per_item'):
+                customer_orders = customer_orders.order_by(OrderCustomer.price_per_item.asc())
+            elif(sorted_field == 'total'):
+                customer_orders = customer_orders.order_by(text('total ASC'))
+
+        else:
+            if(sorted_field == 'sale_id'):
+                customer_orders = customer_orders.order_by(OrderCustomer.sale_id.desc())
+            elif(sorted_field == 'date'):
+                customer_orders = customer_orders.order_by(OrderCustomer.date.desc())
+            elif(sorted_field == 'customer'):
+                customer_orders = customer_orders.order_by(OrderCustomer.customer_id.desc())
+            elif(sorted_field == 'quantity'):
+                customer_orders = customer_orders.order_by(OrderCustomer.quantity.desc())
+            elif(sorted_field == 'price_per_item'):
+                customer_orders = customer_orders.order_by(OrderCustomer.price_per_item.desc())
+            elif(sorted_field == 'total'):
+                customer_orders = customer_orders.order_by(text('total DESC'))
+    else:
+        customer_orders = customer_orders.order_by(OrderCustomer.id.asc())
+
+    customer_orders_with_pag = customer_orders.paginate(page = curr_page, per_page = per_page,  error_out=True)
+    customer_orders_with_pag_without_total = [item[0] for item in customer_orders_with_pag.items]
+
+    items = [item.to_dict() for item in customer_orders_with_pag_without_total]
+    return jsonify({'data':items, 'total': customer_orders_with_pag.total})
+
+
+@bp.route('/product/reallocations/pagination/<int:product_id>/<int:per_page>', methods=['POST'])
 def get_product_reallocations_with_pag(product_id,per_page):
-    curr_page = int(request.args['current'])
-    sorted_field = request.args['field']
-    order = request.args['order']
+    data = request.get_json() or {}
+    curr_page = int(data['current'])
+    sorted_field = data['field']
+    order = data['order']
+    filters = data['filters']
 
     product = Product.query.get_or_404(product_id)
     reallocations = product.reallocations
+    reallocations = reallocations.filter(Reallocation.date >= '{}-{:02d}-01'.format(filters['min_year'], filters['min_month'])).filter(Reallocation.date <= '{}-{:02d}-{:02d} 23:59:59'.format(filters['max_year'], filters['max_month'], monthrange(filters['max_year'],filters['max_month'])[1]))    
 
     if(sorted_field != "" and order !=""):
         if(order == "asc"):

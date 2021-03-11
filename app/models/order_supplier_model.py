@@ -25,7 +25,8 @@ class OrderSupplier(db.Model):
             'quantity':self.quantity,
             'price_per_item':self.price_per_item,
             'purchase_id': self.purchase_id,
-            'supplier': self.supplier.name
+            'supplier': self.supplier.name,
+            'total':self.quantity*self.price_per_item
         }
                 
         return data

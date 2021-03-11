@@ -27,6 +27,7 @@ class OrderCustomer(db.Model):
             'sale_id': self.sale_id,
             'customer': self.customer.name,
             'product_id': self.product_id,
+            'total':self.quantity*self.price_per_item,
             'product_description': self.product.description
         }
                 

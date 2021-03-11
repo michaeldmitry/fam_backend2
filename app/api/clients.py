@@ -61,10 +61,10 @@ def get_suppliers():
 def update_supplier(user_id):
     data = request.get_json() or {}
     supplier = Client.query.get_or_404(user_id)
-    data['name'].strip()
-    data['address'].strip()
-    data['phone_number'].strip()
-    data['email'].strip()
+    data['name'] = data['name'].strip() if data['name'] else None
+    data['address'] = data['address'].strip() if data['address'] else None
+    data['phone_number'] = data['phone_number'].strip() if data['phone_number'] else None
+    data['email']= data['email'].strip() if data['email'] else None
 
     if (Client.query.filter(Client.name == data['name'], Client.id != user_id).first() is not None):
         return bad_request('There is already a supplier with the same name')
@@ -117,12 +117,16 @@ def get_suppliers_with_pag(per_page):
                 supliers = supliers.order_by(Client.id.asc())
             elif(sorted_field == 'name'):
                 supliers = supliers.order_by(Client.name.asc())
+            elif(sorted_field == 'amount_to_get_paid'):
+                supliers = supliers.order_by(Client.amount_to_get_paid.asc())
 
         else:
             if(sorted_field == 'id'):
                 supliers = supliers.order_by(Client.id.desc())
             elif(sorted_field == 'name'):
                 supliers = supliers.order_by(Client.name.desc())
+            elif(sorted_field == 'amount_to_get_paid'):
+                supliers = supliers.order_by(Client.amount_to_get_paid.desc())
     else:
         supliers = supliers.order_by(Client.id.asc())
 
@@ -164,12 +168,21 @@ def get_supplier_purchases_with_pag(supp_id,per_page):
                 purchases = purchases.order_by(Purchase.id.asc())
             elif(sorted_field == 'date'):
                 purchases = purchases.order_by(Purchase.date.asc())
+            elif(sorted_field == 'paid'):
+                purchases = purchases.order_by(Purchase.paid.asc())
+            elif(sorted_field == 'total_price'):
+                purchases = purchases.order_by(Purchase.total_price.asc())
+            
 
         else:
             if(sorted_field == 'id'):
                 purchases = purchases.order_by(Purchase.id.desc())
             elif(sorted_field == 'date'):
                 purchases = purchases.order_by(Purchase.date.desc())
+            elif(sorted_field == 'paid'):
+                purchases = purchases.order_by(Purchase.paid.desc())
+            elif(sorted_field == 'total_price'):
+                purchases = purchases.order_by(Purchase.total_price.desc())
     else:
         purchases = purchases.order_by(Purchase.id.asc())
 
@@ -221,12 +234,16 @@ def get_supplier_payments_with_pag(supp_id,per_page):
                 payments = payments.order_by(PaymentSupplier.id.asc())
             elif(sorted_field == 'date'):
                 payments = payments.order_by(PaymentSupplier.date.asc())
+            elif(sorted_field == 'amount'):
+                payments = payments.order_by(PaymentSupplier.amount.asc())
 
         else:
             if(sorted_field == 'id'):
                 payments = payments.order_by(PaymentSupplier.id.desc())
             elif(sorted_field == 'date'):
                 payments = payments.order_by(PaymentSupplier.date.desc())
+            elif(sorted_field == 'amount'):
+                payments = payments.order_by(PaymentSupplier.amount.desc())
     else:
         payments = payments.order_by(PaymentSupplier.id.asc())
 
@@ -281,11 +298,19 @@ def get_supplier_activity_with_pag(supp_id,per_page):
     res = [dict(row) for row in activity]
     return jsonify({'data':res, 'total': res[0]['Total_count'] if len(res)>0 else 0})
 
-@bp.route('/supplier/activity/<int:supp_id>')
+@bp.route('/supplier/activity/print/<int:supp_id>', methods=['POST'])
 def get_supp_activity(supp_id):
+    data = request.get_json() or {}
+    if 'filters' not in data:
+        return bad_request('Must include filters')
+    filters = data['filters']
+
     supplier = Client.query.get_or_404(supp_id)
-    activity = supplier.getActivity(role = "supplier")
-    return jsonify(activity)
+    activity = supplier.getActivityPrint(role = "supplier", min_month = filters['min_month'], min_year = filters['min_year'], max_month=filters['max_month'], max_year = filters['max_year'])
+    if(activity is None):
+        return bad_request('Something wrong happened from our side')
+    res = [dict(row) for row in activity]
+    return jsonify({'data':res})
 
 
 @bp.route('/customer/create', methods= ['POST'])

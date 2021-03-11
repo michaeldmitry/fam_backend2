@@ -17,7 +17,7 @@ from calendar import monthrange
 
 class Client(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.Unicode(25), index=True, unique=True)
+    name = db.Column(db.Unicode(50), index=True, unique=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     role = db.Column(db.String(10))
 
@@ -72,18 +72,22 @@ class Client(db.Model):
             if field in data:
                 setattr(self, field, data[field])
 
-    def getActivity(self, role):
+    def getActivityPrint(self, role, min_month, min_year, max_month, max_year):
         activity = []
         if(role == "supplier"):
-            purchases = self.supplier_purchases.all()
-            purchases_list = [item.to_dict() for item in purchases]
+            id = self.id
+            sql = text("SELECT id, type, date, paid, total_price, quantity, price_per_item, total, product_id, description FROM\
+                        ((select purchase.id, 'فاتورة مبيعات' as type, purchase.date, purchase.paid, purchase.total_price,\
+                        order_supplier.quantity, order_supplier.price_per_item,(order_supplier.quantity * order_supplier.price_per_item)\
+                        as total, product.id as product_id, product.description from purchase JOIN order_supplier on purchase.id = order_supplier.purchase_id\
+                        JOIN product on product.id = order_supplier.product_id where purchase.supplier_id = {} and DATE(purchase.date)\
+                        BETWEEN '{}-{:02d}-01' AND '{}-{:02d}-{:02d} 23:59:59' ) union all (select payment_supplier.id,'استلام نقدية' as type,\
+                        payment_supplier.date,payment_supplier.amount, 0 as col4, 0 as col5, 0 as col6, 0 as col7,\
+                        '' as col8, '' as col9 from payment_supplier where payment_supplier.supplier_id={}\
+                        and DATE(payment_supplier.date) BETWEEN '{}-{:02d}-01' AND '{}-{:02d}-{:02d} 23:59:59' )) s order by date;".format(str(id), min_year, min_month, max_year, max_month, monthrange(max_year,max_month)[1],  str(id),min_year, min_month, max_year, max_month, monthrange(max_year,max_month)[1]))
 
-            payments  = self.supplier_payments.all()
-            payments_list = [item.to_dict() for item in payments]
-
-            purchases_list.extend(payments_list)
-            activity = sorted(purchases_list, key=lambda x: x['date'])
-
+            both = db.engine.execute(sql)
+            return both
         elif( role == "customer"):
             sales = self.customer_sales.all()
             sales_list = [item.to_dict() for item in sales]

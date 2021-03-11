@@ -11,7 +11,7 @@ import os
 class Warehouse(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.Unicode(50), unique=True, index=True)
-    address = db.Column(db.Unicode(50))
+    address = db.Column(db.Unicode(64))
     products = db.relationship('Product', secondary = 'product_warehouse' , lazy='dynamic')
 
     def to_dict(self):

@@ -39,6 +39,11 @@ class Product(db.Model):
 
     attributes = db.Column(JSON, default=lambda: {})
 
+    def from_dict(self, data):
+        for field in ["part_number", "description", "preorder_level"]:
+            if field in data:
+                setattr(self, field, data[field])
+
     def to_dict(self, warehouse_id= None):
         data = {
             'id': self.id,
