@@ -14,12 +14,34 @@ from app.models.account_model import Account
 from app.models.client_account_model import ClientAccount
 from datetime import date
 from calendar import monthrange
+from flask_cors import cross_origin
 
 @bp.route('/payments/supplier', methods=['GET'])
 def get_supps_payments():
     payments = PaymentSupplier.query.all()
     items = [item.to_dict() for item in payments]
     return jsonify(items)
+
+@bp.route('/payments/supplier/<int:pay_id>', methods=['DELETE'])
+def delete_supplier_payment(pay_id):
+    payment = PaymentSupplier.query.get_or_404(pay_id)
+    db.session.delete(payment)
+    db.session.commit()
+    return jsonify({"message": "deleted successfully"})
+
+@bp.route('/payments/supplier/<int:pay_id>', methods=['PUT'])
+def update_supplier_payment(pay_id):
+    data = request.get_json() or {}
+ 
+    payment = PaymentSupplier.query.get_or_404(pay_id)
+    data['amount'] = float(data['amount']) if data['amount'] else None
+
+    payment.from_dict(data)
+
+    db.session.add(payment)
+    db.session.commit()
+    
+    return jsonify(payment.to_dict())
 
 @bp.route('/payments/supplier/pagination/<int:per_page>',methods=['POST'])
 def get_suppliers_payments_with_pag(per_page):
@@ -41,6 +63,9 @@ def get_suppliers_payments_with_pag(per_page):
                 supplier_payments = supplier_payments.order_by(PaymentSupplier.date.asc())
             elif(sorted_field == 'supplier'):
                 supplier_payments = supplier_payments.order_by(PaymentSupplier.supplier_id.asc())
+            elif(sorted_field == 'amount'):
+                supplier_payments = supplier_payments.order_by(PaymentSupplier.amount.asc())
+
         else:
             if(sorted_field == 'id'):
                 supplier_payments = supplier_payments.order_by(PaymentSupplier.id.desc())
@@ -48,6 +73,8 @@ def get_suppliers_payments_with_pag(per_page):
                 supplier_payments = supplier_payments.order_by(PaymentSupplier.date.desc())
             elif(sorted_field == 'supplier'):
                 supplier_payments = supplier_payments.order_by(PaymentSupplier.supplier_id.desc())
+            elif(sorted_field == 'amount'):
+                supplier_payments = supplier_payments.order_by(PaymentSupplier.amount.desc())
     else:
         supplier_payments = supplier_payments.order_by(PaymentSupplier.id.asc())
 
@@ -65,16 +92,16 @@ def add_supp_payments(supp_id):
 
     payment = PaymentSupplier(amount = float(data['amount']), supplier = supplier)
 
-    rest = supplier.amount_to_get_paid - float(data['amount'])
-    balance_add = 0
-    outstanding_add = 0
+    # rest = supplier.amount_to_get_paid - float(data['amount'])
+    # balance_add = 0
+    # outstanding_add = 0
 
-    if(rest>= 0):
-        supplier.amount_to_get_paid = supplier.amount_to_get_paid - float(data['amount'])
-        supplier.supplier_balance = supplier.supplier_balance+ (float(data['amount']))
-    else:
-        supplier.amount_to_get_paid = 0
-        supplier.supplier_balance = supplier.supplier_balance + abs(rest)
+    # if(rest>= 0):
+    #     supplier.amount_to_get_paid = supplier.amount_to_get_paid - float(data['amount'])
+    #     supplier.supplier_balance = supplier.supplier_balance+ (float(data['amount']))
+    # else:
+    #     supplier.amount_to_get_paid = 0
+    #     supplier.supplier_balance = supplier.supplier_balance + abs(rest)
 
     db.session.add(supplier)
     db.session.add(payment)
@@ -123,16 +150,16 @@ def add_cust_payments(cust_id):
 
     payment = PaymentCustomer(amount = float(data['amount']), customer = customer)
 
-    rest = customer.amount_to_pay - float(data['amount'])
-    balance_add = 0
-    outstanding_add = 0
+    # rest = customer.amount_to_pay - float(data['amount'])
+    # balance_add = 0
+    # outstanding_add = 0
 
-    if(rest>= 0):
-        customer.amount_to_pay = customer.amount_to_pay - float(data['amount'])
-        customer.customer_balance = customer.customer_balance+ (float(data['amount']))
-    else:
-        customer.amount_to_pay = 0
-        customer.customer_balance = customer.customer_balance + abs(rest)
+    # if(rest>= 0):
+    #     customer.amount_to_pay = customer.amount_to_pay - float(data['amount'])
+    #     customer.customer_balance = customer.customer_balance+ (float(data['amount']))
+    # else:
+    #     customer.amount_to_pay = 0
+    #     customer.customer_balance = customer.customer_balance + abs(rest)
 
     db.session.add(customer)
     db.session.add(payment)

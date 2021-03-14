@@ -13,7 +13,7 @@ class Purchase(db.Model):
     total_price = db.Column(db.Float, default = 0.0)
     representative_name = db.Column(db.Unicode(64))
     representative_number = db.Column(db.String(13))
-    representative_email = db.Column(db.String(40))
+    representative_email = db.Column(db.String(50))
     supplier_id = db.Column(db.Integer, db.ForeignKey('client.id'))
     orders_supplier =  db.relationship('OrderSupplier', backref='purchase', lazy='dynamic')
     

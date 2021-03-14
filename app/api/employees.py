@@ -61,10 +61,6 @@ def add_employee():
         data['fullname'] = request.form['fullname'] .strip()
         data['title'] = request.form['title'].strip()
 
-    if(request.form['is_profile_pic'] == "1"):
-        profile_pic = request.files['profile_pic']
-        if(profile_pic is not None):
-            data['profile_pic'] = profile_pic.read()
     
     data['address'] = request.form['address'].strip() if request.form['address'] else None
     data['fixed_salary'] = int(request.form['fixed_salary']) if request.form['fixed_salary'] else None

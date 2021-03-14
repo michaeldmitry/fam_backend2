@@ -13,7 +13,41 @@ from app.models.product_model import Product
 from app.models.reallocation_model import Reallocation
 from app.models.warehouse_model import Warehouse
 from app.models.product_warehouse_model import ProductWarehouse
+from calendar import monthrange
 
+
+@bp.route('/reallocation/<int:re_id>', methods=['DELETE'])
+def delete_reallocation(re_id):
+    reallocation = Reallocation.query.get_or_404(re_id)
+    product = reallocation.product
+
+    if(reallocation.from_loc == "store"):
+        product.store_qt = product.store_qt+reallocation.quantity
+        to_warehouse = ProductWarehouse.query.filter(ProductWarehouse.product_id == product.id, ProductWarehouse.warehouse_id == reallocation.to_warehouse_id).first()
+        if(to_warehouse.quantity < reallocation.quantity):
+            return bad_request('Cannot delete reallocation. Warehouse doesnt have enough quantity')
+        to_warehouse.quantity = to_warehouse.quantity - reallocation.quantity
+        db.session.add(to_warehouse)
+    else:
+        from_warehouse = ProductWarehouse.query.filter(ProductWarehouse.product_id == product.id, ProductWarehouse.warehouse_id == reallocation.from_warehouse_id).first()
+        from_warehouse.quantity = from_warehouse.quantity+reallocation.quantity
+        if(reallocation.to_loc == "warehouse"):
+            to_warehouse = ProductWarehouse.query.filter(ProductWarehouse.product_id == product.id, ProductWarehouse.warehouse_id == reallocation.to_warehouse_id).first()
+            if(to_warehouse.quantity < reallocation.quantity):
+                return bad_request('Cannot delete reallocation. Warehouse doesnt have enough quantity')
+            to_warehouse.quantity = to_warehouse.quantity - reallocation.quantity
+            db.session.add(to_warehouse)
+        else:
+            if(product.store_qt < reallocation.quantity):
+                return bad_request('Cannot delete reallocation. Store doesnt have enough quantity')
+            product.store_qt = product.store_qt - reallocation.quantity
+        db.session.add(from_warehouse)
+
+
+    db.session.add(product)
+    db.session.delete(reallocation)
+    db.session.commit()
+    return jsonify({"message": "deleted successfully"})
 
 @bp.route('/reallocation/store/create/<int:product_id>', methods= ['POST'])
 def reallocate_product_store(product_id):
@@ -121,14 +155,18 @@ def get_reallocations():
     items = [item.to_dict() for item in reallocations]
     return jsonify(items)
 
-@bp.route('/reallocations/pagination/<int:per_page>')
+@bp.route('/reallocations/pagination/<int:per_page>', methods=['POST'])
 def get_reallocations_with_pag(per_page):
-    curr_page = int(request.args['current'])
-    keyword = request.args['search']
-    sorted_field = request.args['field']
-    order = request.args['order']
+    data = request.get_json() or {}
+    curr_page = int(data['current'])
+    keyword = data['search']
+    sorted_field = data['field']
+    order = data['order']
+    filters = data['filters']
 
-    reallocations = Reallocation.query.filter(Reallocation.product.has(Product.part_number.contains(keyword)))
+    reallocations = Reallocation.query.filter(Reallocation.date >= '{}-{:02d}-01'.format(filters['min_year'], filters['min_month'])).filter(Reallocation.date <= '{}-{:02d}-{:02d} 23:59:59'.format(filters['max_year'], filters['max_month'], monthrange(filters['max_year'],filters['max_month'])[1]))    
+
+    reallocations = reallocations.filter(Reallocation.product.has(Product.part_number.contains(keyword)))
 
 
     if(sorted_field != "" and order !=""):

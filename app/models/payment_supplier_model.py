@@ -24,3 +24,9 @@ class PaymentSupplier(db.Model):
                 
         return data
     
+    def from_dict(self, data):
+        for field in ["amount"]:
+            if field in data and data[field]:
+                setattr(self, field, data[field])
+
+    

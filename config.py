@@ -9,3 +9,4 @@ class Config(object):
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # SQLALCHEMY_DATABASE_URI = "mssql+pyodbc://{}/{}?driver=SQL Server?Trusted_Connection=yes".format(server_name, database)
     SQLALCHEMY_DATABASE_URI = "mysql://root:1234@localhost/fam_test2"
+    # CORS_HEADERS = 'Content-Type'

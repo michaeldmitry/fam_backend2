@@ -98,9 +98,9 @@ def pay_sale(sale_id):
         return bad_request('Invalid Amount')
 
     sale.paid = data['paid']
-    customer = sale.customer
-    customer.amount_to_pay = customer.amount_to_pay - data['paid']
-    customer.customer_balance = customer.customer_balance + data['paid']
+    # customer = sale.customer
+    # customer.amount_to_pay = customer.amount_to_pay - data['paid']
+    # customer.customer_balance = customer.customer_balance + data['paid']
     
     db.session.add(sale)
     db.session.commit()
@@ -155,11 +155,11 @@ def add_sale(cust_id):
         db.session.add(prod)
         db.session.add(order)
 
-    if(paid):
-        customer.customer_balance = customer.customer_balance + float(paid)
-        customer.amount_to_pay = customer.amount_to_pay + (float(total_price) - float(paid))
-    else:
-        customer.amount_to_pay = customer.amount_to_pay + float(total_price)
+    # if(paid):
+    #     customer.customer_balance = customer.customer_balance + float(paid)
+    #     customer.amount_to_pay = customer.amount_to_pay + (float(total_price) - float(paid))
+    # else:
+    #     customer.amount_to_pay = customer.amount_to_pay + float(total_price)
 
     db.session.add(customer)
     db.session.add(sale)

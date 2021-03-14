@@ -7,6 +7,7 @@ from app import db
 # import jwt
 import base64
 import os
+from app.models.sale_employee_association_table import sale_employee_association_table
 
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key =True)
@@ -24,6 +25,8 @@ class Sale(db.Model):
 
     customer_id = db.Column(db.Integer, db.ForeignKey('client.id'))
     orders_customer =  db.relationship('OrderCustomer', backref='sale', lazy='dynamic')
+    employees = db.relationship('Employee', secondary=sale_employee_association_table, backref='employee_sales', lazy='dynamic')
+
 
     def to_dict(self):
         data = {

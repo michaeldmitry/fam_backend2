@@ -25,6 +25,34 @@ def get_purchases():
     items = [item.to_dict() for item in purchases]
     return jsonify(items)
 
+@bp.route('/purchase/<int:purchase_id>', methods=['DELETE'])
+def delete_purchase(purchase_id):
+    purchase = Purchase.query.get_or_404(purchase_id)
+
+    purchase_orders = purchase.orders_supplier.all()
+    for order in purchase_orders:
+        order_product_qt = order.quantity
+        order_product  = Product.query.get_or_404(order.product_id)
+        if(order_product.store_qt < order_product_qt):
+            return bad_request(f"Cannot delete purchase. Product {order_product.part_number} has no quantity or no quantity in store")
+        order_product.store_qt = order_product.store_qt - order_product_qt
+        db.session.add(order_product)
+        db.session.delete(order)
+
+    # purchase_supplier = purchase.supplier
+    # purchase_total_price = purchase.total_price
+    # purchase_total_paid = purchase.paid
+
+    # purchase_supplier.supplier_balance = purchase_supplier.supplier_balance - float(purchase_total_paid)
+    # purchase_supplier.amount_to_get_paid = purchase_supplier.amount_to_get_paid - (float(purchase_total_price) - float(purchase_total_paid))
+
+    # db.session.add(purchase_supplier)
+
+    db.session.delete(purchase)
+    db.session.commit()
+    
+    return jsonify({"message": "deleted successfully"})
+
 @bp.route('/purchases/pagination/<int:per_page>', methods=['POST'])
 def get_purchases_with_pag(per_page):
     data = request.get_json() or {}
@@ -46,7 +74,10 @@ def get_purchases_with_pag(per_page):
                 purchases = purchases.order_by(Purchase.date.asc())
             elif(sorted_field == 'supplier'):
                 purchases = purchases.order_by(Purchase.supplier_id.asc())
-
+            elif(sorted_field == 'total_price'):
+                purchases = purchases.order_by(Purchase.total_price.asc())
+            elif(sorted_field == 'paid'):
+                purchases = purchases.order_by(Purchase.paid.asc())
         else:
             if(sorted_field == 'id'):
                 purchases = purchases.order_by(Purchase.id.desc())
@@ -54,6 +85,10 @@ def get_purchases_with_pag(per_page):
                 purchases = purchases.order_by(Purchase.date.desc())
             elif(sorted_field == 'supplier'):
                 purchases = purchases.order_by(Purchase.supplier_id.desc())
+            elif(sorted_field == 'total_price'):
+                purchases = purchases.order_by(Purchase.total_price.desc())
+            elif(sorted_field == 'paid'):
+                purchases = purchases.order_by(Purchase.paid.desc())
     else:
         purchases = purchases.order_by(Purchase.id.asc())
 
@@ -95,8 +130,8 @@ def add_purchase(supp_id):
         db.session.add(order)
 
 
-    supplier.supplier_balance = supplier.supplier_balance + float(paid)
-    supplier.amount_to_get_paid = supplier.amount_to_get_paid + (float(total_price) - float(paid))
+    # supplier.supplier_balance = supplier.supplier_balance + float(paid)
+    # supplier.amount_to_get_paid = supplier.amount_to_get_paid + (float(total_price) - float(paid))
 
     db.session.add(supplier)
     db.session.add(purchase)

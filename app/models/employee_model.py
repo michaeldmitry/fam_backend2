@@ -1,6 +1,6 @@
 from app import db
 from sqlalchemy.types import LargeBinary
-
+from app.models.sale_employee_association_table import sale_employee_association_table
 
 class Employee(db.Model):
     id = db.Column(db.Integer, primary_key =True)
@@ -14,7 +14,7 @@ class Employee(db.Model):
     fixed_salary = db.Column(db.Integer)
     variable_salary = db.Column(db.Integer)
     is_employee = db.Column(db.Boolean, default=True)
-    profile_pic = db.Column(LargeBinary())
+    sales = db.relationship('Sale', secondary=sale_employee_association_table, backref='employees_sales', lazy='dynamic')
 
     def to_dict(self):
         data = {
@@ -29,12 +29,11 @@ class Employee(db.Model):
             'fixed_salary': self.fixed_salary,
             'variable_salary': self.variable_salary,
             'is_employee': self.is_employee,
-            'profile_pic': self.profile_pic
         }
                 
         return data
 
     def from_dict(self, data):
-        for field in ["fullname", "address", "phone", "id_number", "title", "insurance_number", "employment_date", "fixed_salary", "variable_salary", "profile_pic"]:
+        for field in ["fullname", "address", "phone", "id_number", "title", "insurance_number", "employment_date", "fixed_salary", "variable_salary"]:
             if field in data:
                 setattr(self, field, data[field])

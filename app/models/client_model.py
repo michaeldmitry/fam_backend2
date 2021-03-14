@@ -21,10 +21,10 @@ class Client(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     role = db.Column(db.String(10))
 
-    supplier_balance = db.Column(db.Float, default=0.0)
-    customer_balance = db.Column(db.Float, default=0.0)
-    amount_to_pay = db.Column(db.Float, default=0.0)
-    amount_to_get_paid = db.Column(db.Float, default=0.0)
+    # supplier_balance = db.Column(db.Float, default=0.0)
+    # customer_balance = db.Column(db.Float, default=0.0)
+    # amount_to_pay = db.Column(db.Float, default=0.0)
+    # amount_to_get_paid = db.Column(db.Float, default=0.0)
 
     # accounts = db.relationship('Account', secondary = 'client_account' , lazy='dynamic')
     email = db.Column(db.String(50))
@@ -47,17 +47,45 @@ class Client(db.Model):
     customer_returns = db.relationship('ReturnSale', backref = 'customer' , lazy='dynamic')
     customer_order_returns = db.relationship('OrderCustomerReturn', backref='customer', lazy='dynamic')
 
-    def to_dict(self, role, extraInfo=False):
+    def to_dict(self, role, extraInfo=False, balance=None, amount_to_get_paid=None):
         data = {
             'id': self.id,
             'name': self.name
         }
         if(role == "customer"):
-            data['customer_balance'] = self.customer_balance
-            data['amount_to_pay'] = self.amount_to_pay
+            # data['customer_balance'] = self.customer_balance
+            # data['amount_to_pay'] = self.amount_to_pay
+            if(balance is None and amount_to_get_paid is None):
+                sql = text("SELECT IFNULL(sum(paid),0) as paid, IFNULL(sum(total_price),0) as total_balance FROM ((\
+                            select sale.id, sale.paid, sale.total_price\
+                            from sale where sale.customer_id = {})  union all \
+                            (select payment_customer.id, payment_customer.amount, 0 as col4\
+                            from payment_customer where payment_customer.customer_id={})) s;".format(self.id, self.id))
+
+                total_exec = db.engine.execute(sql)
+                res = [dict(row) for row in total_exec]
+                data['customer_balance'] = float(res[0]['paid'])
+                data['amount_to_pay'] = float(res[0]['total_balance']) - float(res[0]['paid'])
+            else:
+                data['customer_balance'] = float(balance)
+                data['amount_to_pay'] = float(amount_to_get_paid)
         elif(role == "supplier"):
-            data['supplier_balance'] = self.supplier_balance
-            data['amount_to_get_paid'] = self.amount_to_get_paid
+
+            if(balance is None and amount_to_get_paid is None):
+                sql = text("SELECT IFNULL(sum(paid),0) as paid, IFNULL(sum(total_price),0) as total_balance FROM ((\
+                            select purchase.id, purchase.paid, purchase.total_price\
+                            from purchase where purchase.supplier_id = {})  union all \
+                            (select payment_supplier.id, payment_supplier.amount, 0 as col4\
+                            from payment_supplier where payment_supplier.supplier_id={})) s;".format(self.id, self.id))
+
+                total_exec = db.engine.execute(sql)
+                res = [dict(row) for row in total_exec]
+                data['supplier_balance'] = float(res[0]['paid'])
+                data['amount_to_get_paid'] = float(res[0]['total_balance']) - float(res[0]['paid'])
+            else:
+                data['supplier_balance'] = float(balance)
+                data['amount_to_get_paid'] = float(amount_to_get_paid)
+
             data['categories'] = [cat.to_dict()['name'] for cat in self.categories.all()]
             # data['categories'] = self.categories.first().name
 
@@ -89,14 +117,19 @@ class Client(db.Model):
             both = db.engine.execute(sql)
             return both
         elif( role == "customer"):
-            sales = self.customer_sales.all()
-            sales_list = [item.to_dict() for item in sales]
+            id = self.id
+            sql = text("SELECT id, official_id, unofficial_id, sale_type, type, date, paid, total_price, quantity, price_per_item, total, product_id, description FROM\
+                        ((select sale.id, sale.official_id, sale.unofficial_id, sale.sale_type, 'فاتورة مبيعات' as type, sale.date, ifnull(sale.paid,0) as paid, sale.total_price,\
+                        order_customer.quantity, order_customer.price_per_item,(order_customer.quantity * order_customer.price_per_item)\
+                        as total, product.id as product_id, product.description from sale JOIN order_customer on sale.id = order_customer.sale_id\
+                        JOIN product on product.id = order_customer.product_id where sale.customer_id = {} and DATE(sale.date)\
+                        BETWEEN '{}-{:02d}-01' AND '{}-{:02d}-{:02d} 23:59:59' ) union all (select payment_customer.id, 0 as col1, 0 as col2, 0 as col3, 'استلام نقدية' as type,\
+                        payment_customer.date,payment_customer.amount, 0 as col4, 0 as col5, 0 as col6, 0 as col7,\
+                        '' as col8, '' as col9 from payment_customer where payment_customer.customer_id={}\
+                        and DATE(payment_customer.date) BETWEEN '{}-{:02d}-01' AND '{}-{:02d}-{:02d} 23:59:59' )) s order by date;".format(str(id), min_year, min_month, max_year, max_month, monthrange(max_year,max_month)[1],  str(id),min_year, min_month, max_year, max_month, monthrange(max_year,max_month)[1]))
 
-            payments  = self.customer_payments.all()
-            payments_list = [item.to_dict() for item in payments]
-
-            sales_list.extend(payments_list)
-            activity = sorted(sales_list, key=lambda x: x['date'])
+            both = db.engine.execute(sql)
+            return both
 
         return activity
 
@@ -113,9 +146,9 @@ class Client(db.Model):
 
         elif( role == "customer"):
             id = self.id
-            sql = text("SELECT id, date, paid, total_price, COUNT(*) OVER() AS Total_count FROM ((select sale.id, sale.date, sale.paid, sale.total_price from sale where sale.customer_id = \
-                     {}) union all (select payment_customer.id,  payment_customer.date,payment_customer.amount, Null as col5 from payment_customer\
-                     where payment_customer.customer_id={})) s order by {} {} LIMIt {}, {};".format(str(id), str(id), field, order,  str((page_no-1)*rows_per_page), str(rows_per_page) ))
+            sql = text("SELECT id, official_id, unofficial_id, sale_type, date, paid, total_price, COUNT(*) OVER() AS Total_count FROM ((select sale.id, sale.official_id, sale.unofficial_id, sale.sale_type, sale.date, ifnull(sale.paid,0)as paid, sale.total_price from sale where sale.customer_id = \
+                     {} and DATE(sale.date) BETWEEN '{}-{:02d}-01' AND '{}-{:02d}-{:02d} 23:59:59' ) union all (select payment_customer.id, 0 as col1, 0 as col2, 0 as col3, payment_customer.date,payment_customer.amount, Null as col5 from payment_customer\
+                     where payment_customer.customer_id={} and DATE(payment_customer.date) BETWEEN '{}-{:02d}-01' AND '{}-{:02d}-{:02d} 23:59:59' )) s order by {} {} LIMIT {}, {};".format(str(id), min_year, min_month, max_year, max_month, monthrange(max_year,max_month)[1],  str(id),min_year, min_month, max_year, max_month, monthrange(max_year,max_month)[1]  , field, order, str((page_no-1)*rows_per_page), str(rows_per_page) ))
 
             both = db.engine.execute(sql)
             return both
