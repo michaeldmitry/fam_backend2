@@ -16,7 +16,6 @@ from app.models.account_model import Account
 from app.models.client_account_model import ClientAccount
 from datetime import date, timedelta
 from calendar import monthrange
-import pandas as pd
 from app.models.employee_model import Employee
 
 @bp.route('/pricequotas')
