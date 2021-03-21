@@ -11,7 +11,7 @@ import os
 class PaymentSupplier(db.Model):
     id = db.Column(db.Integer, primary_key =True)
     date = db.Column(db.DateTime, default = datetime.utcnow)
-    amount = db.Column(db.Float, default = 0.0)
+    amount = db.Column(db.Float(2), default = 0.0)
     supplier_id =  db.Column(db.Integer, db.ForeignKey('client.id'))
     
     def to_dict(self):

@@ -12,8 +12,8 @@ from app.models.sale_employee_association_table import sale_employee_association
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key =True)
     date = db.Column(db.DateTime, default = datetime.utcnow)
-    paid = db.Column(db.Float)
-    total_price = db.Column(db.Float, default = 0.0)
+    paid = db.Column(db.Float(2))
+    total_price = db.Column(db.Float(2), default = 0.0)
     sale_type = db.Column(db.Boolean, default=True)
     taxes_add = db.Column(db.Boolean, default = True)
     reduction_add = db.Column(db.Boolean, default = True)
@@ -45,7 +45,8 @@ class Sale(db.Model):
             'customer_id': self.customer_id,
             'paid':self.paid
         }
-                
+        data['employees'] = [ {"fullname":emp.fullname, "id": emp.id} for emp in self.employees.all()]
+
         return data
     
     def from_dict(self, data, customer):

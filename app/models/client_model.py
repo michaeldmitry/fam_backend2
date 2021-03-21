@@ -41,6 +41,9 @@ class Client(db.Model):
     customer_payments = db.relationship('PaymentCustomer', backref='customer', lazy='dynamic')
     customer_orders = db.relationship('OrderCustomer', backref='customer', lazy='dynamic')
 
+    customer_price_quotas = db.relationship('PriceQuotas', backref='customer', lazy='dynamic')
+    customer_orders_price_quotas = db.relationship('OrderPriceQuota', backref='customer', lazy='dynamic')
+
     supplier_returns = db.relationship('ReturnPurchase', backref = 'supplier' , lazy='dynamic')
     supplier_order_returns = db.relationship('OrderSupplierReturn', backref='supplier', lazy='dynamic')
 
@@ -56,7 +59,7 @@ class Client(db.Model):
             # data['customer_balance'] = self.customer_balance
             # data['amount_to_pay'] = self.amount_to_pay
             if(balance is None and amount_to_get_paid is None):
-                sql = text("SELECT IFNULL(sum(paid),0) as paid, IFNULL(sum(total_price),0) as total_balance FROM ((\
+                sql = text("SELECT ROUND(IFNULL(sum(paid),0),2) as paid, ROUND(IFNULL(sum(total_price),0),2) as total_balance FROM ((\
                             select sale.id, sale.paid, sale.total_price\
                             from sale where sale.customer_id = {})  union all \
                             (select payment_customer.id, payment_customer.amount, 0 as col4\
@@ -72,7 +75,7 @@ class Client(db.Model):
         elif(role == "supplier"):
 
             if(balance is None and amount_to_get_paid is None):
-                sql = text("SELECT IFNULL(sum(paid),0) as paid, IFNULL(sum(total_price),0) as total_balance FROM ((\
+                sql = text("SELECT ROUND(IFNULL(sum(paid),0),2) as paid, ROUND(IFNULL(sum(total_price),0),2) as total_balance FROM ((\
                             select purchase.id, purchase.paid, purchase.total_price\
                             from purchase where purchase.supplier_id = {})  union all \
                             (select payment_supplier.id, payment_supplier.amount, 0 as col4\
@@ -104,7 +107,7 @@ class Client(db.Model):
         activity = []
         if(role == "supplier"):
             id = self.id
-            sql = text("SELECT id, type, date, paid, total_price, quantity, price_per_item, total, product_id, description FROM\
+            sql = text("SELECT id, type, date, ROUND(paid,2) as paid, ROUND(total_price,2) as total_price, quantity, price_per_item, total, product_id, description FROM\
                         ((select purchase.id, 'فاتورة مبيعات' as type, purchase.date, purchase.paid, purchase.total_price,\
                         order_supplier.quantity, order_supplier.price_per_item,(order_supplier.quantity * order_supplier.price_per_item)\
                         as total, product.id as product_id, product.description from purchase JOIN order_supplier on purchase.id = order_supplier.purchase_id\
@@ -118,7 +121,7 @@ class Client(db.Model):
             return both
         elif( role == "customer"):
             id = self.id
-            sql = text("SELECT id, official_id, unofficial_id, sale_type, type, date, paid, total_price, quantity, price_per_item, total, product_id, description FROM\
+            sql = text("SELECT id, official_id, unofficial_id, sale_type, type, date, ROUND(paid,2) as paid, ROUND(total_price,2) as total_price, quantity, price_per_item, total, product_id, description FROM\
                         ((select sale.id, sale.official_id, sale.unofficial_id, sale.sale_type, 'فاتورة مبيعات' as type, sale.date, ifnull(sale.paid,0) as paid, sale.total_price,\
                         order_customer.quantity, order_customer.price_per_item,(order_customer.quantity * order_customer.price_per_item)\
                         as total, product.id as product_id, product.description from sale JOIN order_customer on sale.id = order_customer.sale_id\
@@ -137,7 +140,7 @@ class Client(db.Model):
         
         if(role == "supplier"):
             id = self.id
-            sql = text("SELECT id, date, paid, total_price, COUNT(*) OVER() AS Total_count FROM ((select purchase.id, purchase.date, purchase.paid, purchase.total_price from purchase where purchase.supplier_id = \
+            sql = text("SELECT id, date, ROUND(paid,2) as paid, ROUND(total_price,2) as total_price, COUNT(*) OVER() AS Total_count FROM ((select purchase.id, purchase.date, purchase.paid, purchase.total_price from purchase where purchase.supplier_id = \
                      {} and DATE(purchase.date) BETWEEN '{}-{:02d}-01' AND '{}-{:02d}-{:02d} 23:59:59' ) union all (select payment_supplier.id,  payment_supplier.date,payment_supplier.amount, Null as col5 from payment_supplier\
                      where payment_supplier.supplier_id={} and DATE(payment_supplier.date) BETWEEN '{}-{:02d}-01' AND '{}-{:02d}-{:02d} 23:59:59' )) s order by {} {} LIMIT {}, {};".format(str(id), min_year, min_month, max_year, max_month, monthrange(max_year,max_month)[1],  str(id),min_year, min_month, max_year, max_month, monthrange(max_year,max_month)[1]  , field, order, str((page_no-1)*rows_per_page), str(rows_per_page) ))
 
@@ -146,7 +149,7 @@ class Client(db.Model):
 
         elif( role == "customer"):
             id = self.id
-            sql = text("SELECT id, official_id, unofficial_id, sale_type, date, paid, total_price, COUNT(*) OVER() AS Total_count FROM ((select sale.id, sale.official_id, sale.unofficial_id, sale.sale_type, sale.date, ifnull(sale.paid,0)as paid, sale.total_price from sale where sale.customer_id = \
+            sql = text("SELECT id, official_id, unofficial_id, sale_type, date, ROUND(paid,2) as paid, ROUND(total_price,2) as total_price, COUNT(*) OVER() AS Total_count FROM ((select sale.id, sale.official_id, sale.unofficial_id, sale.sale_type, sale.date, ifnull(sale.paid,0)as paid, sale.total_price from sale where sale.customer_id = \
                      {} and DATE(sale.date) BETWEEN '{}-{:02d}-01' AND '{}-{:02d}-{:02d} 23:59:59' ) union all (select payment_customer.id, 0 as col1, 0 as col2, 0 as col3, payment_customer.date,payment_customer.amount, Null as col5 from payment_customer\
                      where payment_customer.customer_id={} and DATE(payment_customer.date) BETWEEN '{}-{:02d}-01' AND '{}-{:02d}-{:02d} 23:59:59' )) s order by {} {} LIMIT {}, {};".format(str(id), min_year, min_month, max_year, max_month, monthrange(max_year,max_month)[1],  str(id),min_year, min_month, max_year, max_month, monthrange(max_year,max_month)[1]  , field, order, str((page_no-1)*rows_per_page), str(rows_per_page) ))
 

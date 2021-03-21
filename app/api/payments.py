@@ -29,11 +29,32 @@ def delete_supplier_payment(pay_id):
     db.session.commit()
     return jsonify({"message": "deleted successfully"})
 
+@bp.route('/payments/customer/<int:pay_id>', methods=['DELETE'])
+def delete_customer_payment(pay_id):
+    payment = PaymentCustomer.query.get_or_404(pay_id)
+    db.session.delete(payment)
+    db.session.commit()
+    return jsonify({"message": "deleted successfully"})
+
 @bp.route('/payments/supplier/<int:pay_id>', methods=['PUT'])
 def update_supplier_payment(pay_id):
     data = request.get_json() or {}
  
     payment = PaymentSupplier.query.get_or_404(pay_id)
+    data['amount'] = float(data['amount']) if data['amount'] else None
+
+    payment.from_dict(data)
+
+    db.session.add(payment)
+    db.session.commit()
+    
+    return jsonify(payment.to_dict())
+
+@bp.route('/payments/customer/<int:pay_id>', methods=['PUT'])
+def update_customer_payment(pay_id):
+    data = request.get_json() or {}
+ 
+    payment = PaymentCustomer.query.get_or_404(pay_id)
     data['amount'] = float(data['amount']) if data['amount'] else None
 
     payment.from_dict(data)
@@ -82,6 +103,45 @@ def get_suppliers_payments_with_pag(per_page):
     items = [item.to_dict() for item in supplier_payments_with_pag.items]
     return jsonify({'data':items, 'total':  supplier_payments_with_pag.total})
 
+@bp.route('/payments/customer/pagination/<int:per_page>',methods=['POST'])
+def get_customers_payments_with_pag(per_page):
+    data = request.get_json() or {}
+    curr_page = int(data['current'])
+    keyword = data['search']
+    sorted_field = data['field']
+    order = data['order']
+    filters = data['filters']
+
+    customer_payments = PaymentCustomer.query.filter(PaymentCustomer.date >= '{}-{:02d}-01'.format(filters['min_year'], filters['min_month'])).filter(PaymentCustomer.date <= '{}-{:02d}-{:02d} 23:59:59'.format(filters['max_year'], filters['max_month'], monthrange(filters['max_year'],filters['max_month'])[1]))    
+    customer_payments = customer_payments.filter(PaymentCustomer.customer.has(Client.name.contains(keyword)))
+
+    if(sorted_field != "" and order != ""):
+        if(order == "asc"):
+            if(sorted_field == 'id'):
+                customer_payments = customer_payments.order_by(PaymentCustomer.id.asc())
+            elif(sorted_field == 'date'):
+                customer_payments = customer_payments.order_by(PaymentCustomer.date.asc())
+            elif(sorted_field == 'customer'):
+                customer_payments = customer_payments.order_by(PaymentCustomer.customer_id.asc())
+            elif(sorted_field == 'amount'):
+                customer_payments = customer_payments.order_by(PaymentCustomer.amount.asc())
+
+        else:
+            if(sorted_field == 'id'):
+                customer_payments = customer_payments.order_by(PaymentCustomer.id.desc())
+            elif(sorted_field == 'date'):
+                customer_payments = customer_payments.order_by(PaymentCustomer.date.desc())
+            elif(sorted_field == 'customer'):
+                customer_payments = customer_payments.order_by(PaymentCustomer.customer_id.desc())
+            elif(sorted_field == 'amount'):
+                customer_payments = customer_payments.order_by(PaymentCustomer.amount.desc())
+    else:
+        customer_payments = customer_payments.order_by(PaymentCustomer.id.asc())
+
+    supplier_payments_with_pag = customer_payments.paginate(page = curr_page, per_page = per_page,  error_out=True)
+    items = [item.to_dict() for item in supplier_payments_with_pag.items]
+    return jsonify({'data':items, 'total':  supplier_payments_with_pag.total})
+
 @bp.route('/payments/supplier/create/<int:supp_id>', methods=['POST'])
 def add_supp_payments(supp_id):
     data = request.get_json() or {}
@@ -109,36 +169,7 @@ def add_supp_payments(supp_id):
 
     return jsonify(payment.to_dict())
     
-@bp.route('/payments/customer/pagination/<int:per_page>')
-def get_customers_payments_with_pag(per_page):
-    curr_page = int(request.args['current'])
-    keyword = request.args['search']
-    sorted_field = request.args['field']
-    order = request.args['order']
 
-    customer_payments = PaymentCustomer.query.filter(PaymentCustomer.customer.has(Client.name.contains(keyword)))
-
-    if(sorted_field != "" and order != ""):
-        if(order == "asc"):
-            if(sorted_field == 'id'):
-                customer_payments = customer_payments.order_by(PaymentCustomer.id.asc())
-            elif(sorted_field == 'date'):
-                customer_payments = customer_payments.order_by(PaymentCustomer.date.asc())
-            elif(sorted_field == 'customer'):
-                customer_payments = customer_payments.order_by(PaymentCustomer.customer_id.asc())
-        else:
-            if(sorted_field == 'id'):
-                customer_payments = customer_payments.order_by(PaymentCustomer.id.desc())
-            elif(sorted_field == 'date'):
-                customer_payments = customer_payments.order_by(PaymentCustomer.date.desc())
-            elif(sorted_field == 'customer'):
-                customer_payments = customer_payments.order_by(PaymentCustomer.customer_id.desc())
-    else:
-        customer_payments = customer_payments.order_by(PaymentCustomer.id.asc())
-
-    customer_payments_with_pag = customer_payments.paginate(page = curr_page, per_page = per_page,  error_out=True)
-    items = [item.to_dict() for item in customer_payments_with_pag.items]
-    return jsonify({'data':items, 'total':  customer_payments_with_pag.total})
 
 @bp.route('/payments/customer/create/<int:cust_id>', methods=['POST'])
 def add_cust_payments(cust_id):

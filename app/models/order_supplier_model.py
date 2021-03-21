@@ -12,7 +12,7 @@ class OrderSupplier(db.Model):
     id = db.Column(db.Integer, primary_key =True)
     date = db.Column(db.DateTime, default = datetime.utcnow)
     quantity = db.Column(db.Integer, default = 0)
-    price_per_item = db.Column(db.Float)
+    price_per_item = db.Column(db.Float(2))
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'))
     purchase_id = db.Column(db.Integer, db.ForeignKey('purchase.id'))
     supplier_id = db.Column(db.Integer, db.ForeignKey('client.id'))

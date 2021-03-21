@@ -28,6 +28,7 @@ class Product(db.Model):
     
     orders_supplier = db.relationship('OrderSupplier', backref='product', lazy='dynamic')
     orders_customer = db.relationship('OrderCustomer', backref='product', lazy='dynamic')
+    orders_price_quotas= db.relationship('OrderPriceQuota', backref='product', lazy='dynamic')
 
     returns_order_supplier = db.relationship('OrderSupplierReturn', backref='product', lazy='dynamic')
     returns_order_customer = db.relationship('OrderCustomerReturn', backref='product', lazy='dynamic')

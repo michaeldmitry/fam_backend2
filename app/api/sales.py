@@ -17,6 +17,7 @@ from app.models.client_account_model import ClientAccount
 from datetime import date, timedelta
 from calendar import monthrange
 import pandas as pd
+from app.models.employee_model import Employee
 
 @bp.route('/sales')
 def get_sales():
@@ -31,7 +32,7 @@ def get_sales_chart():
     max_year = int(request.args['max_year'])
     max_month = int(request.args['max_month'])
     sales = db.session.query(func.count(Sale.date).label('count'), Sale.date).filter(Sale.date >= '{}-{:02d}-01'.format(min_year, min_month)).filter(Sale.date <= '{}-{:02d}-{:02d} 23:59:59'.format(max_year, max_month, monthrange(max_year, max_month)[1])).group_by(func.date(Sale.date)).order_by(Sale.date)
-    sales_price = db.session.query(func.sum(Sale.total_price).label('total'), func.count(Sale.id).label('count')).filter(Sale.date >= '{}-{:02d}-01'.format(min_year, min_month)).filter(Sale.date <= '{}-{:02d}-{:02d}'.format(max_year, max_month, monthrange(max_year, max_month)[1])).first()
+    sales_price = db.session.query(func.round(func.sum(Sale.total_price),2).label('total'), func.count(Sale.id).label('count')).filter(Sale.date >= '{}-{:02d}-01'.format(min_year, min_month)).filter(Sale.date <= '{}-{:02d}-{:02d}'.format(max_year, max_month, monthrange(max_year, max_month)[1])).first()
 
     arr = [ {'x': sale.date, 'y': sale.count} for sale in sales.all()]
     return jsonify({'arr':arr, 'price': sales_price.total, 'count': sales_price.count})
@@ -65,7 +66,10 @@ def get_sales_with_pag(per_page):
                 sales = sales.order_by(Sale.date.asc())
             elif(sorted_field == 'customer'):
                 sales = sales.order_by(Sale.customer_id.asc())
-
+            elif(sorted_field == 'total_price'):
+                sales = sales.order_by(Sale.total_price.asc())
+            elif(sorted_field == 'paid'):
+                sales = sales.order_by(Sale.paid.asc())
         else:
             if(sorted_field == 'id'):
                 sales = sales.order_by(Sale.id.desc())
@@ -73,6 +77,10 @@ def get_sales_with_pag(per_page):
                 sales = sales.order_by(Sale.date.desc())
             elif(sorted_field == 'customer'):
                 sales = sales.order_by(Sale.customer_id.desc())
+            elif(sorted_field == 'total_price'):
+                sales = sales.order_by(Sale.total_price.desc())
+            elif(sorted_field == 'paid'):
+                sales = sales.order_by(Sale.paid.desc())
     else:
         sales = sales.order_by(Sale.id.asc())
 
@@ -124,6 +132,7 @@ def add_sale(cust_id):
     representative_name = data['representative_name'].strip() if data['representative_name'] else None
     representative_number = data['representative_number'].strip() if data['representative_number'] else None
     representative_email = data['representative_email'].strip() if data['representative_email'] else None
+    employees = data['employees']
 
     customer = Client.query.get_or_404(cust_id)
     
@@ -155,6 +164,10 @@ def add_sale(cust_id):
         db.session.add(prod)
         db.session.add(order)
 
+    for emp_id in employees:
+        employee = Employee.query.get_or_404(emp_id)
+        sale.employees.append(employee)
+        db.session.add(employee)
     # if(paid):
     #     customer.customer_balance = customer.customer_balance + float(paid)
     #     customer.amount_to_pay = customer.amount_to_pay + (float(total_price) - float(paid))

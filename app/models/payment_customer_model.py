@@ -11,7 +11,7 @@ import os
 class PaymentCustomer(db.Model):
     id = db.Column(db.Integer, primary_key =True)
     date = db.Column(db.DateTime, default = datetime.utcnow)
-    amount = db.Column(db.Float, default = 0.0)
+    amount = db.Column(db.Float(2), default = 0.0)
     customer_id =  db.Column(db.Integer, db.ForeignKey('client.id'))
     
     def to_dict(self):
@@ -23,3 +23,8 @@ class PaymentCustomer(db.Model):
         }
                 
         return data
+        
+    def from_dict(self, data):
+        for field in ["amount"]:
+            if field in data and data[field]:
+                setattr(self, field, data[field])

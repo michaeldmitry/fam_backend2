@@ -25,6 +25,18 @@ def get_purchases():
     items = [item.to_dict() for item in purchases]
     return jsonify(items)
 
+@bp.route('/purchases/chart', methods=['GET'])
+def get_purchases_chart():
+    min_year = int(request.args['min_year'])
+    min_month = int(request.args['min_month'])
+    max_year = int(request.args['max_year'])
+    max_month = int(request.args['max_month'])
+    purchases = db.session.query(func.count(Purchase.date).label('count'), Purchase.date).filter(Purchase.date >= '{}-{:02d}-01'.format(min_year, min_month)).filter(Purchase.date <= '{}-{:02d}-{:02d} 23:59:59'.format(max_year, max_month, monthrange(max_year, max_month)[1])).group_by(func.date(Purchase.date)).order_by(Purchase.date)
+    purchases_price = db.session.query(func.round(func.sum(Purchase.total_price),2).label('total'), func.count(Purchase.id).label('count')).filter(Purchase.date >= '{}-{:02d}-01'.format(min_year, min_month)).filter(Purchase.date <= '{}-{:02d}-{:02d}'.format(max_year, max_month, monthrange(max_year, max_month)[1])).first()
+
+    arr = [ {'x': purchase.date, 'y': purchase.count} for purchase in purchases.all()]
+    return jsonify({'arr':arr, 'price': purchases_price.total, 'count': purchases_price.count})
+
 @bp.route('/purchase/<int:purchase_id>', methods=['DELETE'])
 def delete_purchase(purchase_id):
     purchase = Purchase.query.get_or_404(purchase_id)

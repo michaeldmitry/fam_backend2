@@ -22,7 +22,7 @@ from app.models.payment_customer_model import PaymentCustomer
 
 @bp.route('/suppliers/owed')
 def get_owed_money():
-    sql = text("SELECT IFNULL(sum(total_price - paid),0) as owed FROM ((\
+    sql = text("SELECT ROUND(IFNULL(sum(total_price - paid),0),2) as owed FROM ((\
                 select purchase.id, purchase.paid, purchase.total_price\
                 from purchase)  union all \
                 (select payment_supplier.id, payment_supplier.amount, 0 as col4\
@@ -35,7 +35,7 @@ def get_owed_money():
 
 @bp.route('/customers/owed')
 def get_owed_money_customers():
-    sql = text("SELECT IFNULL(sum(total_price - paid),0) as owed FROM ((\
+    sql = text("SELECT ROUND(IFNULL(sum(total_price - paid),0),2) as owed FROM ((\
                 select sale.id, IFNULL(sale.paid,0) as paid, sale.total_price\
                 from sale)  union all \
                 (select payment_customer.id, payment_customer.amount, 0 as col4\
@@ -168,7 +168,7 @@ def get_suppliers_with_pag(per_page):
     payments_query = db.session.query(PaymentSupplier.supplier_id.label("id"), literal(0).label("total_price"), PaymentSupplier.amount.label("paid"))
     union_both = union_all(purchases_query, payments_query).alias("s")
 
-    supliers = db.session.query(Client, func.ifnull(func.sum(union_both.c.paid), 0).label("paid"), func.ifnull(func.sum(union_both.c.total_price - union_both.c.paid),0).label("outstanding") ).outerjoin(union_both, Client.id == union_both.c.id).filter(Client.role == "supplier").group_by(union_both.c.id)
+    supliers = db.session.query(Client, func.round(func.ifnull(func.sum(union_both.c.paid), 0),2).label("paid"), func.round(func.ifnull(func.sum(union_both.c.total_price - union_both.c.paid),0),2).label("outstanding") ).outerjoin(union_both, Client.id == union_both.c.id).filter(Client.role == "supplier").group_by(union_both.c.id)
     if(cat != -1):
         supliers = supliers.filter(Client.categories.any(Category.id == cat))
 
@@ -210,7 +210,7 @@ def get_customers_with_pag(per_page):
     payments_query = db.session.query(PaymentCustomer.customer_id.label("id"), literal(0).label("total_price"), PaymentCustomer.amount.label("paid"))
     union_both = union_all(sales_query, payments_query).alias("s")
 
-    customers = db.session.query(Client, func.ifnull(func.sum(union_both.c.paid), 0).label("paid"), func.ifnull(func.sum(union_both.c.total_price - union_both.c.paid),0).label("outstanding") ).outerjoin(union_both, Client.id == union_both.c.id).filter(Client.role == "customer").group_by(union_both.c.id)
+    customers = db.session.query(Client, func.round(func.ifnull(func.sum(union_both.c.paid), 0),2).label("paid"), func.round(func.ifnull(func.sum(union_both.c.total_price - union_both.c.paid),0),2).label("outstanding") ).outerjoin(union_both, Client.id == union_both.c.id).filter(Client.role == "customer").group_by(union_both.c.id)
     customers = customers.filter(Client.name.contains(keyword))
 
     if(sorted_field != "" and order !=""):
@@ -505,6 +505,102 @@ def get_supplier_activity_with_pag(supp_id,per_page):
         return bad_request('Something wrong happened from our side')
 
     res = [dict(row) for row in activity]
+    return jsonify({'data':res, 'total': res[0]['Total_count'] if len(res)>0 else 0})
+
+@bp.route('/suppliers/outstanding/pagination/<int:per_page>', methods=['POST'])
+def get_suppliers_activity_outstanding_with_pag(per_page):
+    data = request.get_json() or {}
+    curr_page = int(data['current'])
+    # keyword = request.args['search']
+    sorted_field = data['field']
+    order = data['order']
+    field_param = None
+    order_param = None
+    if(sorted_field != "" and order !=""):
+        if(order == "asc"):
+            if(sorted_field == 'supplier'):
+                field_param = "supplier"
+                order_param = "ASC"
+            elif(sorted_field == 'latest_date'):
+                field_param = "latest_date"
+                order_param = "ASC"
+            elif(sorted_field == 'outstanding'):
+                field_param = "outstanding"
+                order_param = "ASC"
+        else:
+            if(sorted_field == 'supplier'):
+                field_param = "supplier"
+                order_param = "DESC"
+            elif(sorted_field == 'latest_date'):
+                field_param = "latest_date"
+                order_param = "DESC"
+            elif(sorted_field == 'outstanding'):
+                field_param = "outstanding"
+                order_param = "DESC"
+    else:
+        field_param = "outstanding"
+        order_param = "DESC"
+
+    sql = text("with activity as ((select purchase.supplier_id as id, purchase.total_price as total_price, purchase.paid as paid,\
+                (purchase.date) as date, 'purchase' as type from purchase) union all (select payment_supplier.supplier_id as id, 0\
+                as total_price, payment_supplier.amount as paid, (payment_supplier.date) as date, 'payment' as type from payment_supplier)\
+                ) select m.id, m.max_date as latest_date, m.outstanding, client.name as supplier, type, count(*) over() as Total_count from ( SELECT id , MAX(date)\
+                AS max_date, ROUND(IFNULL(SUM(total_price - paid), 0),2) as outstanding FROM activity GROUP BY id) as m inner join\
+                activity as t on t.id = m.id and t.date = m.max_date join client on m.id = client.id order by {} {} limit {} , {} ;"\
+                .format(field_param, order_param, str((curr_page-1)*per_page), str(per_page)))
+    query = db.engine.execute(sql)
+    if(query is None):
+        return bad_request('Something wrong happened from our side')
+    res = [dict(row) for row in query]
+    # print(res)
+    return jsonify({'data':res, 'total': res[0]['Total_count'] if len(res)>0 else 0})
+
+@bp.route('/customers/outstanding/pagination/<int:per_page>', methods=['POST'])
+def get_customers_activity_outstanding_with_pag(per_page):
+    data = request.get_json() or {}
+    curr_page = int(data['current'])
+    # keyword = request.args['search']
+    sorted_field = data['field']
+    order = data['order']
+    field_param = None
+    order_param = None
+    if(sorted_field != "" and order !=""):
+        if(order == "asc"):
+            if(sorted_field == 'customer'):
+                field_param = "customer"
+                order_param = "ASC"
+            elif(sorted_field == 'latest_date'):
+                field_param = "latest_date"
+                order_param = "ASC"
+            elif(sorted_field == 'outstanding'):
+                field_param = "outstanding"
+                order_param = "ASC"
+        else:
+            if(sorted_field == 'customer'):
+                field_param = "customer"
+                order_param = "DESC"
+            elif(sorted_field == 'latest_date'):
+                field_param = "latest_date"
+                order_param = "DESC"
+            elif(sorted_field == 'outstanding'):
+                field_param = "outstanding"
+                order_param = "DESC"
+    else:
+        field_param = "outstanding"
+        order_param = "DESC"
+
+    sql = text("with activity as ((select sale.customer_id as id, sale.total_price as total_price, ifnull(sale.paid,0) as paid,\
+                (sale.date) as date, 'sale' as type from sale) union all (select payment_customer.customer_id as id, 0\
+                as total_price, payment_customer.amount as paid, (payment_customer.date) as date, 'payment' as type from payment_customer)\
+                ) select m.id, m.max_date as latest_date, m.outstanding, client.name as customer, type, count(*) over() as Total_count from ( SELECT id , MAX(date)\
+                AS max_date, ROUND(IFNULL(SUM(total_price - paid), 0),2) as outstanding FROM activity GROUP BY id) as m inner join\
+                activity as t on t.id = m.id and t.date = m.max_date join client on m.id = client.id order by {} {} limit {} , {} ;"\
+                .format(field_param, order_param, str((curr_page-1)*per_page), str(per_page)))
+    query = db.engine.execute(sql)
+    if(query is None):
+        return bad_request('Something wrong happened from our side')
+    res = [dict(row) for row in query]
+    # print(res)
     return jsonify({'data':res, 'total': res[0]['Total_count'] if len(res)>0 else 0})
 
 @bp.route('/customer/activity/pagination/<int:cust_id>/<int:per_page>', methods=['POST'])
