@@ -8,5 +8,5 @@ class Config(object):
     database = "fam_test2"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # SQLALCHEMY_DATABASE_URI = "mssql+pyodbc://{}/{}?driver=SQL Server?Trusted_Connection=yes".format(server_name, database)
-    SQLALCHEMY_DATABASE_URI = "mysql://root:1234@localhost/fam_test2"
+    SQLALCHEMY_DATABASE_URI = "mysql://b73f82e2343771:b135b809@us-cdbr-east-03.cleardb.com/heroku_98dcd394ec262de?reconnect=true"
     # CORS_HEADERS = 'Content-Type'
