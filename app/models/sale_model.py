@@ -22,7 +22,7 @@ class Sale(db.Model):
     representative_name = db.Column(db.Unicode(64))
     representative_number = db.Column(db.String(13))
     representative_email = db.Column(db.String(40))
-
+    is_active = db.Column(db.Boolean, default=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('client.id'))
     orders_customer =  db.relationship('OrderCustomer', backref='sale', lazy='dynamic')
     employees = db.relationship('Employee', secondary=sale_employee_association_table, backref='employee_sales', lazy='dynamic')
@@ -43,7 +43,8 @@ class Sale(db.Model):
             'total_price':self.total_price,
             'customer':self.customer.name,
             'customer_id': self.customer_id,
-            'paid':self.paid
+            'paid':self.paid,
+            'is_active':self.is_active
         }
         data['employees'] = [ {"fullname":emp.fullname, "id": emp.id} for emp in self.employees.all()]
 

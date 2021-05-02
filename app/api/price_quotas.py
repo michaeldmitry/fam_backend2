@@ -12,8 +12,6 @@ from app.models.client_model import Client
 from app.models.product_model import Product
 from app.models.order_price_quota_model import OrderPriceQuota
 from sqlalchemy.sql import exists, func, text
-from app.models.account_model import Account
-from app.models.client_account_model import ClientAccount
 from datetime import date, timedelta
 from calendar import monthrange
 from app.models.employee_model import Employee
@@ -102,7 +100,7 @@ def add_pricequotas(cust_id):
     for o in orders:
         product_id = int(o['product_id'])
         prod = Product.query.get_or_404(product_id)
-        order = OrderPriceQuota(quantity = int(o['quantity']), price_per_item = float(o['price_per_item']), product= prod , customer = customer)
+        order = OrderPriceQuota(quantity = int(o['quantity']), price_per_item = float(o['price_per_item']), product= prod , customer = customer, description = o['product_description'])
         pricequotas.orders_customer.append(order)
         db.session.add(prod)
         db.session.add(order)

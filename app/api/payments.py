@@ -10,8 +10,6 @@ import uuid
 from app.models.client_model import Client
 from app.models.payment_supplier_model import PaymentSupplier
 from app.models.payment_customer_model import PaymentCustomer
-from app.models.account_model import Account
-from app.models.client_account_model import ClientAccount
 from datetime import date
 from calendar import monthrange
 from flask_cors import cross_origin

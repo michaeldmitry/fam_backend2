@@ -14,6 +14,7 @@ class OrderPriceQuota(db.Model):
     quantity = db.Column(db.Integer, default = 0)
     price_per_item = db.Column(db.Float(2))
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'))
+    description = db.Column(db.Unicode(64))
     price_quota_id = db.Column(db.Integer, db.ForeignKey('price_quotas.id'))
     customer_id = db.Column(db.Integer, db.ForeignKey('client.id'))
 
@@ -28,7 +29,7 @@ class OrderPriceQuota(db.Model):
             'customer': self.customer.name,
             'product_id': self.product_id,
             'total':self.quantity*self.price_per_item,
-            'product_description': self.product.description
+            'product_description': self.description
         }
                 
         return data

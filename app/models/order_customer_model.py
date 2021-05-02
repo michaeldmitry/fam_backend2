@@ -14,6 +14,7 @@ class OrderCustomer(db.Model):
     quantity = db.Column(db.Integer, default = 0)
     price_per_item = db.Column(db.Float(2))
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'))
+    description = db.Column(db.Unicode(64))
     sale_id = db.Column(db.Integer, db.ForeignKey('sale.id'))
     customer_id = db.Column(db.Integer, db.ForeignKey('client.id'))
 
@@ -23,12 +24,13 @@ class OrderCustomer(db.Model):
             'date': self.date,
             'product':self.product.part_number,
             'quantity':self.quantity,
+            # 'description':self.description,
             'price_per_item':self.price_per_item,
             'sale_id': self.sale_id,
             'customer': self.customer.name,
             'product_id': self.product_id,
             'total':self.quantity*self.price_per_item,
-            'product_description': self.product.description
+            'product_description': self.description
         }
                 
         return data

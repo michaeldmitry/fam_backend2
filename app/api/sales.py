@@ -12,8 +12,6 @@ from app.models.client_model import Client
 from app.models.product_model import Product
 from app.models.order_customer_model import OrderCustomer
 from sqlalchemy.sql import exists, func, text
-from app.models.account_model import Account
-from app.models.client_account_model import ClientAccount
 from datetime import date, timedelta
 from calendar import monthrange
 from app.models.employee_model import Employee
@@ -30,12 +28,32 @@ def get_sales_chart():
     min_month = int(request.args['min_month'])
     max_year = int(request.args['max_year'])
     max_month = int(request.args['max_month'])
-    sales = db.session.query(func.count(Sale.date).label('count'), Sale.date).filter(Sale.date >= '{}-{:02d}-01'.format(min_year, min_month)).filter(Sale.date <= '{}-{:02d}-{:02d} 23:59:59'.format(max_year, max_month, monthrange(max_year, max_month)[1])).group_by(func.date(Sale.date)).order_by(Sale.date)
-    sales_price = db.session.query(func.round(func.sum(Sale.total_price),2).label('total'), func.count(Sale.id).label('count')).filter(Sale.date >= '{}-{:02d}-01'.format(min_year, min_month)).filter(Sale.date <= '{}-{:02d}-{:02d}'.format(max_year, max_month, monthrange(max_year, max_month)[1])).first()
+    sales = db.session.query(func.count(Sale.date).label('count'), Sale.date).filter(Sale.is_active == True).filter(Sale.date >= '{}-{:02d}-01'.format(min_year, min_month)).filter(Sale.date <= '{}-{:02d}-{:02d} 23:59:59'.format(max_year, max_month, monthrange(max_year, max_month)[1])).group_by(func.date(Sale.date)).order_by(Sale.date)
+    sales_price = db.session.query(func.round(func.sum(Sale.total_price),2).label('total'), func.count(Sale.id).label('count')).filter(Sale.is_active == True).filter(Sale.date >= '{}-{:02d}-01'.format(min_year, min_month)).filter(Sale.date <= '{}-{:02d}-{:02d}'.format(max_year, max_month, monthrange(max_year, max_month)[1])).first()
 
     arr = [ {'x': sale.date, 'y': sale.count} for sale in sales.all()]
     return jsonify({'arr':arr, 'price': sales_price.total, 'count': sales_price.count})
 
+@bp.route('/sale/<int:sale_id>', methods=['DELETE'])
+def delete_sale(sale_id):
+    sale = Sale.query.get_or_404(sale_id)
+    if(sale.is_active == False):
+        return bad_request('Sale is already cancelled')
+
+    sale_orders = sale.orders_customer.all()
+    for order in sale_orders:
+        order_product_qt = order.quantity
+        order_product  = Product.query.get_or_404(order.product_id)
+        order_product.store_qt = order_product.store_qt + order_product_qt
+        db.session.add(order_product)
+
+    sale.is_active = False
+    if sale.paid is None:
+        sale.paid = 0
+    db.session.add(sale)
+    db.session.commit()
+    
+    return jsonify(sale.to_dict())
 
 @bp.route('/sales/pagination/<int:per_page>', methods=['POST'])
 def get_sales_with_pag(per_page):
@@ -69,6 +87,9 @@ def get_sales_with_pag(per_page):
                 sales = sales.order_by(Sale.total_price.asc())
             elif(sorted_field == 'paid'):
                 sales = sales.order_by(Sale.paid.asc())
+            elif(sorted_field == 'is_active'):
+                sales = sales.order_by(Sale.is_active.asc())
+
         else:
             if(sorted_field == 'id'):
                 sales = sales.order_by(Sale.id.desc())
@@ -80,6 +101,8 @@ def get_sales_with_pag(per_page):
                 sales = sales.order_by(Sale.total_price.desc())
             elif(sorted_field == 'paid'):
                 sales = sales.order_by(Sale.paid.desc())
+            elif(sorted_field == 'is_active'):
+                sales = sales.order_by(Sale.is_active.desc())
     else:
         sales = sales.order_by(Sale.id.asc())
 
@@ -92,6 +115,8 @@ def get_sales_with_pag(per_page):
 def pay_sale(sale_id):
     sale = Sale.query.get_or_404(sale_id)
 
+    if(sale.is_active == False):
+        return bad_request('Sale is already cancelled')
 
     data = request.get_json() or {}
     if 'paid' not in data:
@@ -157,7 +182,7 @@ def add_sale(cust_id):
         prod = Product.query.get_or_404(product_id)
         if(prod.store_qt < int(o['quantity'])):
             return bad_request("Product {} doesn\'t have enough quantity in store".format(prod.part_number))
-        order = OrderCustomer(quantity = int(o['quantity']), price_per_item = float(o['price_per_item']), product= prod , customer = customer)
+        order = OrderCustomer(quantity = int(o['quantity']), price_per_item = float(o['price_per_item']), product= prod , customer = customer, description = o['product_description'])
         sale.orders_customer.append(order)
         prod.store_qt = prod.store_qt - int(o['quantity'])
         db.session.add(prod)

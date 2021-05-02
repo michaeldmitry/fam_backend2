@@ -22,9 +22,15 @@ def get_dates_range():
     if(int(request.args['id'])>0):
         id = int(request.args['id'])
         field = (request.args['field']).strip()
-        result = db.engine.execute(text("select min(YEAR(date)) as min_year, max(YEAR(date)) as max_year from {} where {}={}".format(table, field, id)))
+        if(table == "sale"):
+            result = db.session.execute(text("select min(YEAR(date)) as min_year, max(YEAR(date)) as max_year from {} where sale.is_active=true and {}={}".format(table, field, id)))
+        else:
+            result = db.session.execute(text("select min(YEAR(date)) as min_year, max(YEAR(date)) as max_year from {} where {}={}".format(table, field, id)))
     else:
-        result = db.engine.execute(text("select min(YEAR(date)) as min_year, max(YEAR(date)) as max_year from {}".format(table)))
+        if(table == "sale"):
+            result = db.session.execute(text("select min(YEAR(date)) as min_year, max(YEAR(date)) as max_year from {} where sale.is_active = true".format(table)))
+        else:
+            result = db.session.execute(text("select min(YEAR(date)) as min_year, max(YEAR(date)) as max_year from {}".format(table)))
     res = [dict(row) for row in result]
     if(len(res) >0):
         return jsonify(res[0])
@@ -35,4 +41,4 @@ def get_dates_range():
 @bp.route('/total', methods=['GET'])
 def get_total():
     return jsonify({"supplier": Client.query.filter(Client.role == "supplier").count(), "customer": Client.query.filter(Client.role == "customer").count(),
-                    "purchase": Purchase.query.count(), "sale": Sale.query.count(), "product": Product.query.count()})
+                    "purchase": Purchase.query.count(), "sale": Sale.query.filter(Sale.is_active == True).count(), "product": Product.query.count()})

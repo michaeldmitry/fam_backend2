@@ -103,7 +103,7 @@ def get_employees_sales_with_pag(per_page):
     order = request.args['order']
     sorted_field = request.args['field']
     
-    employees = db.session.query(Employee.id, Employee.fullname, func.count(sale_employee_association_table.c.sale_id).label("total_sales")).outerjoin(sale_employee_association_table, Employee.id == sale_employee_association_table.c.employee_id).group_by(Employee.id)
+    employees = db.session.query(Employee.id, Employee.fullname, func.count(sale_employee_association_table.c.sale_id).label("total_sales")).outerjoin(sale_employee_association_table, Employee.id == sale_employee_association_table.c.employee_id).outerjoin(Sale, sale_employee_association_table.c.sale_id == Sale.id).filter(Sale.is_active == True).group_by(Employee.id)
     if(sorted_field != "" and order !=""):
         if(order == "asc"):
             if(sorted_field == 'fullname'):
@@ -131,7 +131,7 @@ def get_employee_sales_with_pag(emp_id,per_page):
     order = data['order']
     filters = data['filters']
 
-    sales = db.session.query(Sale).join(sale_employee_association_table, sale_employee_association_table.c.sale_id == Sale.id).filter(sale_employee_association_table.c.employee_id == emp_id)
+    sales = db.session.query(Sale).join(sale_employee_association_table, sale_employee_association_table.c.sale_id == Sale.id).filter(Sale.is_active == True).filter(sale_employee_association_table.c.employee_id == emp_id)
     sales = sales.filter(Sale.date >= '{}-{:02d}-01'.format(filters['min_year'], filters['min_month'])).filter(Sale.date <= '{}-{:02d}-{:02d}'.format(filters['max_year'], filters['max_month'], monthrange(filters['max_year'],filters['max_month'])[1]))    
     sales = sales.filter(Sale.customer.has(Client.name.contains(keyword)))
     

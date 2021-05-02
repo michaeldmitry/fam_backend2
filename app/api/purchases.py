@@ -12,8 +12,6 @@ from app.models.client_model import Client
 from app.models.product_model import Product
 from app.models.order_supplier_model import OrderSupplier
 from sqlalchemy.sql import exists, func, text
-from app.models.account_model import Account
-from app.models.client_account_model import ClientAccount
 from datetime import date
 from random import randint
 from datetime import date, timedelta

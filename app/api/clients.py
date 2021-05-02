@@ -28,7 +28,7 @@ def get_owed_money():
                 (select payment_supplier.id, payment_supplier.amount, 0 as col4\
                 from payment_supplier)) s;")
 
-    total_exec = db.engine.execute(sql)
+    total_exec = db.session.execute(sql)
     res = [dict(row) for row in total_exec]
     # total = Client.query.with_entities(func.sum(Client.amount_to_get_paid).label("total")).filter_by(role ="supplier").first()
     return jsonify({'total': res[0]['owed']})
@@ -37,11 +37,11 @@ def get_owed_money():
 def get_owed_money_customers():
     sql = text("SELECT ROUND(IFNULL(sum(total_price - paid),0),2) as owed FROM ((\
                 select sale.id, IFNULL(sale.paid,0) as paid, sale.total_price\
-                from sale)  union all \
+                from sale where sale.is_active = true)  union all \
                 (select payment_customer.id, payment_customer.amount, 0 as col4\
                 from payment_customer)) s;")
 
-    total_exec = db.engine.execute(sql)
+    total_exec = db.session.execute(sql)
     res = [dict(row) for row in total_exec]
     # total = Client.query.with_entities(func.sum(Client.amount_to_get_paid).label("total")).filter_by(role ="supplier").first()
     return jsonify({'total': res[0]['owed']})
@@ -206,7 +206,7 @@ def get_customers_with_pag(per_page):
     sorted_field = request.args['field']
     order = request.args['order']
 
-    sales_query = db.session.query(Sale.customer_id.label("id"), Sale.total_price.label("total_price"),  func.ifnull(Sale.paid,0).label("paid"))
+    sales_query = db.session.query(Sale.customer_id.label("id"), Sale.total_price.label("total_price"),  func.ifnull(Sale.paid,0).label("paid")).filter(Sale.is_active == True)
     payments_query = db.session.query(PaymentCustomer.customer_id.label("id"), literal(0).label("total_price"), PaymentCustomer.amount.label("paid"))
     union_both = union_all(sales_query, payments_query).alias("s")
 
@@ -303,7 +303,7 @@ def get_customer_sales_with_pag(cust_id,per_page):
 
     customer = Client.query.get_or_404(cust_id)
     sales = customer.customer_sales
-    sales = sales.filter(Sale.date >= '{}-{:02d}-01'.format(filters['min_year'], filters['min_month'])).filter(Sale.date <= '{}-{:02d}-{:02d} 23:59:59'.format(filters['max_year'], filters['max_month'], monthrange(filters['max_year'],filters['max_month'])[1]))    
+    sales = sales.filter(Sale.is_active==True).filter(Sale.date >= '{}-{:02d}-01'.format(filters['min_year'], filters['min_month'])).filter(Sale.date <= '{}-{:02d}-{:02d} 23:59:59'.format(filters['max_year'], filters['max_month'], monthrange(filters['max_year'],filters['max_month'])[1]))    
 
     if(sale_type == 1):
         sales = sales.filter(Sale.sale_type == True)
@@ -344,7 +344,7 @@ def get_supplier_accumulated(supp_id):
     min_month = int(request.args['min_month'])
     min_year = int(request.args['min_year'])
 
-    result = db.engine.execute(text("select sum(paid) as total_paid, sum(total_price) as total_price from ( select purchase.id, purchase.date, purchase.paid, purchase.total_price, purchase.supplier_id from purchase where purchase.supplier_id = {} \
+    result = db.session.execute(text("select sum(paid) as total_paid, sum(total_price) as total_price from ( select purchase.id, purchase.date, purchase.paid, purchase.total_price, purchase.supplier_id from purchase where purchase.supplier_id = {} \
                                     and DATE(purchase.date) < '{}-{}-01' union all select payment_supplier.id,  payment_supplier.date,\
                                     payment_supplier.amount, Null as col5, payment_supplier.supplier_id from payment_supplier\
                                     where payment_supplier.supplier_id={} and DATE(payment_supplier.date) < '{}-{}-01') x group by supplier_id;".format(supp_id, min_year, min_month, supp_id, min_year, min_month)))
@@ -359,7 +359,7 @@ def get_customer_accumulated(cust_id):
     min_month = int(request.args['min_month'])
     min_year = int(request.args['min_year'])
 
-    result = db.engine.execute(text("select sum(paid) as total_paid, sum(total_price) as total_price from ( select sale.id, sale.date, ifnull(sale.paid,0) as paid, sale.total_price, sale.customer_id from sale where sale.customer_id = {} \
+    result = db.session.execute(text("select sum(paid) as total_paid, sum(total_price) as total_price from ( select sale.id, sale.date, ifnull(sale.paid,0) as paid, sale.total_price, sale.customer_id from sale where sale.is_active=true and sale.customer_id = {} \
                                     and DATE(sale.date) < '{}-{}-01' union all select payment_customer.id,  payment_customer.date,\
                                     payment_customer.amount, Null as col5, payment_customer.customer_id from payment_customer\
                                     where payment_customer.customer_id={} and DATE(payment_customer.date) < '{}-{}-01') x group by customer_id;".format(cust_id, min_year, min_month, cust_id, min_year, min_month)))
@@ -371,7 +371,7 @@ def get_customer_accumulated(cust_id):
 
 @bp.route('/dates/supplier/activity/<int:supp_id>', methods=['GET'])
 def get_dates_range_supplier_activity(supp_id):
-    result = db.engine.execute(text("select min(min_year) as min_year, max(max_year) as max_year FROM (select min(YEAR(date)) as min_year, max(YEAR(date)) as max_year from purchase where supplier_id = {} UNION SELECT min(YEAR(date)) as min_year, max(YEAR(DATE)) as max_year from payment_supplier where supplier_id={}) s".format(supp_id, supp_id)))
+    result = db.session.execute(text("select min(min_year) as min_year, max(max_year) as max_year FROM (select min(YEAR(date)) as min_year, max(YEAR(date)) as max_year from purchase where supplier_id = {} UNION SELECT min(YEAR(date)) as min_year, max(YEAR(DATE)) as max_year from payment_supplier where supplier_id={}) s".format(supp_id, supp_id)))
     res = [dict(row) for row in result]
     if(len(res) > 0):
         return jsonify(res[0])
@@ -381,7 +381,7 @@ def get_dates_range_supplier_activity(supp_id):
 
 @bp.route('/dates/customer/activity/<int:cust_id>', methods=['GET'])
 def get_dates_range_customer_activity(cust_id):
-    result = db.engine.execute(text("select min(min_year) as min_year, max(max_year) as max_year FROM (select min(YEAR(date)) as min_year, max(YEAR(date)) as max_year from sale where customer_id = {} UNION SELECT min(YEAR(date)) as min_year, max(YEAR(DATE)) as max_year from payment_customer where customer_id={}) s".format(cust_id, cust_id)))
+    result = db.session.execute(text("select min(min_year) as min_year, max(max_year) as max_year FROM (select min(YEAR(date)) as min_year, max(YEAR(date)) as max_year from sale where sale.is_active=true and customer_id = {} UNION SELECT min(YEAR(date)) as min_year, max(YEAR(DATE)) as max_year from payment_customer where customer_id={}) s".format(cust_id, cust_id)))
     res = [dict(row) for row in result]
     if(len(res) > 0):
         return jsonify(res[0])
@@ -548,7 +548,7 @@ def get_suppliers_activity_outstanding_with_pag(per_page):
                 AS max_date, ROUND(IFNULL(SUM(total_price - paid), 0),2) as outstanding FROM activity GROUP BY id) as m inner join\
                 activity as t on t.id = m.id and t.date = m.max_date join client on m.id = client.id order by {} {} limit {} , {} ;"\
                 .format(field_param, order_param, str((curr_page-1)*per_page), str(per_page)))
-    query = db.engine.execute(sql)
+    query = db.session.execute(sql)
     if(query is None):
         return bad_request('Something wrong happened from our side')
     res = [dict(row) for row in query]
@@ -590,13 +590,13 @@ def get_customers_activity_outstanding_with_pag(per_page):
         order_param = "DESC"
 
     sql = text("with activity as ((select sale.customer_id as id, sale.total_price as total_price, ifnull(sale.paid,0) as paid,\
-                (sale.date) as date, 'sale' as type from sale) union all (select payment_customer.customer_id as id, 0\
+                (sale.date) as date, 'sale' as type from sale where sale.is_active = true) union all (select payment_customer.customer_id as id, 0\
                 as total_price, payment_customer.amount as paid, (payment_customer.date) as date, 'payment' as type from payment_customer)\
                 ) select m.id, m.max_date as latest_date, m.outstanding, client.name as customer, type, count(*) over() as Total_count from ( SELECT id , MAX(date)\
                 AS max_date, ROUND(IFNULL(SUM(total_price - paid), 0),2) as outstanding FROM activity GROUP BY id) as m inner join\
                 activity as t on t.id = m.id and t.date = m.max_date join client on m.id = client.id order by {} {} limit {} , {} ;"\
                 .format(field_param, order_param, str((curr_page-1)*per_page), str(per_page)))
-    query = db.engine.execute(sql)
+    query = db.session.execute(sql)
     if(query is None):
         return bad_request('Something wrong happened from our side')
     res = [dict(row) for row in query]

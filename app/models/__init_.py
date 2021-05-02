@@ -9,10 +9,6 @@ from .order_customer_model import OrderCustomer
 from .payment_customer_model import PaymentCustomer
 from .reallocation_model import Reallocation
 from .sale_model import Sale
-from .order_supplier_return_model import OrderSupplierReturn
-from .return_purchase_model import ReturnPurchase
-from .order_customer_return_model import OrderCustomerReturn
-from .return_sale_model import ReturnSale
 from .category_model import Category
 from .subcategory_model import Subcategory
 from .brand_product_association_table import brand_product_association_table

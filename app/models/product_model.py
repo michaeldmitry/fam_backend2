@@ -30,8 +30,8 @@ class Product(db.Model):
     orders_customer = db.relationship('OrderCustomer', backref='product', lazy='dynamic')
     orders_price_quotas= db.relationship('OrderPriceQuota', backref='product', lazy='dynamic')
 
-    returns_order_supplier = db.relationship('OrderSupplierReturn', backref='product', lazy='dynamic')
-    returns_order_customer = db.relationship('OrderCustomerReturn', backref='product', lazy='dynamic')
+    # returns_order_supplier = db.relationship('OrderSupplierReturn', backref='product', lazy='dynamic')
+    # returns_order_customer = db.relationship('OrderCustomerReturn', backref='product', lazy='dynamic')
 
     warehouses = db.relationship('Warehouse', secondary = 'product_warehouse' , lazy='dynamic')
     reallocations = db.relationship('Reallocation', backref = 'product' , lazy='dynamic')
@@ -66,9 +66,11 @@ class Product(db.Model):
     
         total_quantity = self.store_qt
         sum_query = text('select SUM(product_warehouse.quantity) as Total from product_warehouse where product_warehouse.product_id='+str(self.id))
-        res_query = db.engine.execute(sum_query)
+        res_query = db.session.execute(sum_query)
         result = [dict(row) for row in res_query]
-        data['total_quantity'] = self.store_qt + int(result[0]['Total'])
+        # print(self.store_qt)
+        # print(result[0]['Total'])
+        data['total_quantity'] = self.store_qt + (int(result[0]['Total'] or 0))
 
         if(warehouse_id):
             data['warehouse_quantity'] = ProductWarehouse.query.filter(ProductWarehouse.product_id == self.id, ProductWarehouse.warehouse_id == warehouse_id).first().quantity
@@ -92,5 +94,5 @@ class Product(db.Model):
         sql = text("with recursive cteUp (id, part_number, replaces_id) as (select id, part_number, replaces_id from product where id = {} union all select p.id,\
              p.part_number, p.replaces_id from product p inner join cteUp on p.id= cteUp.replaces_id) select * from cteUp;".format(self.id))
 
-        both = db.engine.execute(sql)
+        both = db.session.execute(sql)
         return both

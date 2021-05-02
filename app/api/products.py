@@ -20,13 +20,20 @@ from app.models.subcategory_model import Subcategory
 from app.models.brand_model import Brand
 from sqlalchemy.orm import aliased
 from calendar import monthrange
+from app.models.sale_model import Sale
 
 
 @bp.route('/products', methods=['GET'])
 def get_products():
     products = Product.query.all()
     items = [item.to_dict() for item in products]
-    return jsonify(items)
+    keys = [val for product in products for val in product.attributes.keys() if product.attributes ]
+    # for product in products:
+    #     if product[0].attributes:
+    #         keys.extend(product[0].attributes.keys())
+    keys=list(set(keys))
+
+    return jsonify({'products': items, 'attrs': keys})
 
 @bp.route('/product/<int:prod_id>', methods=['DELETE'])
 def delete_product(prod_id):
@@ -105,6 +112,18 @@ def get_products_below_preorder(per_page):
     items = [item.to_dict() for item in products_with_pag_without_total]
     return jsonify({'data':items, 'total':  products_with_pag.total})
 
+@bp.route('/products/search')
+def get_special_products_search():
+    keyword = request.args['keyword']
+    subquery = db.session.query(Product.root_replacement_id).filter(Product.part_number.contains(keyword) | Product.description.contains(keyword)).subquery()
+    getAllTreeQ = db.session.query(Product).filter(Product.root_replacement_id.in_(subquery))
+    getMatchesQ = db.session.query(Product).filter(Product.part_number.contains(keyword) | Product.description.contains(keyword))
+    unionedQ = getAllTreeQ.union(getMatchesQ) 
+    products = unionedQ.from_self(Product).all()
+    items = [item.to_dict() for item in products]
+    return jsonify(items)
+
+
 @bp.route('/products/pagination/<int:per_page>', methods=['POST'])
 def get_products_with_pag(per_page):
     data = request.get_json() or {}
@@ -123,7 +142,7 @@ def get_products_with_pag(per_page):
     unionedQ = getAllTreeQ.union(getMatchesQ) 
     products = unionedQ.from_self(Product, (func.sum(ProductWarehouse.quantity)+Product.store_qt).label('total')).join(ProductWarehouse).group_by(Product)
 
-
+    # print(products)
 
     if(cat != -1):
         products = products.filter(Product.subcategory.has(Subcategory.category_id == cat))
@@ -133,10 +152,12 @@ def get_products_with_pag(per_page):
     if(brand != -1):
         products = products.filter(Product.brand_id == brand)
 
-    keys = []
-    for product in products.all():
-        if product[0].attributes:
-            keys.extend(product[0].attributes.keys())
+    # keys = []
+    keys = [val for product in products for val in product[0].attributes.keys() if product[0].attributes ]
+
+    # for product in products.all():
+    #     if product[0].attributes:
+    #         keys.extend(product[0].attributes.keys())
     keys=list(set(keys))
     
     for attr in attributes:
@@ -232,7 +253,7 @@ def get_product_sales_with_pag(product_id,per_page):
 
     product = Product.query.get_or_404(product_id)
     # supplier_orders = product.orders_supplier
-    customer_orders = db.session.query(OrderCustomer, (OrderCustomer.price_per_item * OrderCustomer.quantity).label("total")).filter(OrderCustomer.product_id == product_id)
+    customer_orders = db.session.query(OrderCustomer, (OrderCustomer.price_per_item * OrderCustomer.quantity).label("total")).filter(OrderCustomer.product_id == product_id).filter(OrderCustomer.sale.has(Sale.is_active == True))
     customer_orders = customer_orders.filter(OrderCustomer.date >= '{}-{:02d}-01'.format(filters['min_year'], filters['min_month'])).filter(OrderCustomer.date <= '{}-{:02d}-{:02d} 23:59:59'.format(filters['max_year'], filters['max_month'], monthrange(filters['max_year'],filters['max_month'])[1]))    
 
     if(sorted_field != "" and order !=""):
@@ -314,7 +335,7 @@ def add_product(subcat_id, brand_id):
     if 'description' not in data or 'part_number' not in data:
         return bad_request('must include item part number & description fields')
 
-    data['part_number'] = data['part_number'].strip()
+    data['part_number'] = data['part_number'].strip().upper()
     
     subcategory = Subcategory.query.get_or_404(subcat_id)
     brand = Brand.query.get_or_404(brand_id)
@@ -327,6 +348,11 @@ def add_product(subcat_id, brand_id):
     else:
         data['preorder_level'] = 0
     
+    if('store_qt' in data):
+        data['store_qt'] = int(data['store_qt'])
+    else:
+        data['store_qt'] = 0
+
     replacement=None
 
     if 'replacement' in data and data['replacement']:
@@ -336,7 +362,7 @@ def add_product(subcat_id, brand_id):
         data['description'] = data['description'].strip()
 
     
-    product = Product(description = data['description'], part_number = data['part_number'], preorder_level = data['preorder_level'], subcategory=subcategory, brand=brand, attributes= data['attributes'])
+    product = Product(store_qt = data['store_qt'], description = data['description'], part_number = data['part_number'], preorder_level = data['preorder_level'], subcategory=subcategory, brand=brand, attributes= data['attributes'])
     if(replacement):
         replacement.replaced_by.append(product)
         rootReplacement = db.session.query(Product).from_statement(text(''' 
