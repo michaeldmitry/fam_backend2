@@ -344,9 +344,9 @@ def get_supplier_accumulated(supp_id):
     min_month = int(request.args['min_month'])
     min_year = int(request.args['min_year'])
 
-    result = db.session.execute(text("select sum(paid) as total_paid, sum(total_price) as total_price from ( select purchase.id, purchase.date, purchase.paid, purchase.total_price, purchase.supplier_id from purchase where purchase.supplier_id = {} \
+    result = db.session.execute(text("select sum(paid) as total_paid, sum(total_price) as total_price from ( select purchase.id, purchase.date, purchase.paid,  ifnull(purchase.total_price,0) as total_price, purchase.supplier_id from purchase where purchase.supplier_id = {} \
                                     and DATE(purchase.date) < '{}-{}-01' union all select payment_supplier.id,  payment_supplier.date,\
-                                    payment_supplier.amount, Null as col5, payment_supplier.supplier_id from payment_supplier\
+                                    payment_supplier.amount, 0 as col5, payment_supplier.supplier_id from payment_supplier\
                                     where payment_supplier.supplier_id={} and DATE(payment_supplier.date) < '{}-{}-01') x group by supplier_id;".format(supp_id, min_year, min_month, supp_id, min_year, min_month)))
     res = [dict(row) for row in result]
     if(len(res) > 0):
@@ -359,11 +359,12 @@ def get_customer_accumulated(cust_id):
     min_month = int(request.args['min_month'])
     min_year = int(request.args['min_year'])
 
-    result = db.session.execute(text("select sum(paid) as total_paid, sum(total_price) as total_price from ( select sale.id, sale.date, ifnull(sale.paid,0) as paid, sale.total_price, sale.customer_id from sale where sale.is_active=true and sale.customer_id = {} \
+    result = db.session.execute(text("select sum(paid) as total_paid, sum(total_price) as total_price from ( select sale.id, sale.date, ifnull(sale.paid,0) as paid, ifnull(sale.total_price,0) as total_price, sale.customer_id from sale where sale.is_active=true and sale.customer_id = {} \
                                     and DATE(sale.date) < '{}-{}-01' union all select payment_customer.id,  payment_customer.date,\
-                                    payment_customer.amount, Null as col5, payment_customer.customer_id from payment_customer\
+                                    payment_customer.amount, 0 as col5, payment_customer.customer_id from payment_customer\
                                     where payment_customer.customer_id={} and DATE(payment_customer.date) < '{}-{}-01') x group by customer_id;".format(cust_id, min_year, min_month, cust_id, min_year, min_month)))
     res = [dict(row) for row in result]
+    # print(res)
     if(len(res) > 0):
         return jsonify(res[0])
     else:
