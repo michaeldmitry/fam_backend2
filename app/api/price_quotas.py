@@ -91,11 +91,16 @@ def add_pricequotas(cust_id):
     representative_name = data['representative_name'].strip() if data['representative_name'] else None
     representative_number = data['representative_number'].strip() if data['representative_number'] else None
     representative_email = data['representative_email'].strip() if data['representative_email'] else None
+    payment = data['payment'].strip() if data['payment'] else None
+    supply_period = data['supply_period'].strip() if data['supply_period'] else None
+    supply_place = data['supply_place'].strip() if data['supply_place'] else None
+    attachment_period = data['attachment_period'].strip() if data['attachment_period'] else None
+
     # employees = data['employees']
 
     customer = Client.query.get_or_404(cust_id)
     
-    pricequotas =  PriceQuotas(total_price = total_price, customer = customer, representative_name=representative_name, representative_number=representative_number, representative_email = representative_email)
+    pricequotas =  PriceQuotas(payment=payment, supply_period=supply_period, supply_place=supply_place,attachment_period=attachment_period, total_price = total_price, customer = customer, representative_name=representative_name, representative_number=representative_number, representative_email = representative_email)
 
     for o in orders:
         product_id = int(o['product_id'])

@@ -18,6 +18,11 @@ class PriceQuotas(db.Model):
     representative_number = db.Column(db.String(13))
     representative_email = db.Column(db.String(40))
 
+    payment = db.Column(db.Unicode(64))
+    supply_period = db.Column(db.Unicode(64))
+    supply_place = db.Column(db.Unicode(64))
+    attachment_period = db.Column(db.Unicode(64))
+
     customer_id = db.Column(db.Integer, db.ForeignKey('client.id'))
     orders_customer =  db.relationship('OrderPriceQuota', backref='sale', lazy='dynamic')
     # employees = db.relationship('Employee', secondary=sale_employee_association_table, backref='employee_sales', lazy='dynamic')
@@ -33,6 +38,10 @@ class PriceQuotas(db.Model):
             'total_price':self.total_price,
             'customer':self.customer.name,
             'customer_id': self.customer_id,
+            'payment':self.payment,
+            'supply_period':self.supply_period,
+            'supply_place':self.supply_place,
+            'attachment_period':self.attachment_period
         }
         # data['employees'] = [ {"fullname":emp.fullname, "id": emp.id} for emp in self.employees.all()]
 
